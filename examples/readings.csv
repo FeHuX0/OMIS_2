@@ -1,0 +1,3 @@
+serial;measured_at;power_w;energy_kwh;interval_seconds
+EXAMPLE-001;2026-11-09T12:00:00+03:00;1000;1.0;3600
+EXAMPLE-001;2026-11-09T13:00:00+03:00;500;0.5;3600
