@@ -224,6 +224,80 @@ class ReportService:
             f"<h2>Рекомендации</h2><ul>{recs}</ul></body></html>"
         )
 
+    def pdf_bytes(self, session, report: Report) -> bytes:
+        self.access.require(session)
+        lines = [
+            "Energy Home — Отчёт по энергопотреблению",
+            f"Период: {report.start:%d.%m.%Y %H:%M} — {report.end:%d.%m.%Y %H:%M} (Минск)",
+            f"Итого: {report.energy_kwh:.3f} кВт·ч | Стоимость: {report.cost:.2f} BYN",
+            f"Предыдущий период: {report.previous_kwh:.3f} кВт·ч",
+            "",
+            "Вклад приборов:",
+            *[
+                f"  - {d['name']} ({d['room']}): {d['energy_kwh']:.3f} кВт·ч, {d['cost']:.2f} BYN"
+                for d in report.devices
+            ],
+            "",
+            "Динамика по интервалам:",
+            *[f"  {lbl}: {val:.3f} кВт·ч" for lbl, val in report.series[:31]],
+            "",
+            "Аномалии:",
+            *([f"  ! {a['message']}" for a in report.anomalies[:10]] or ["  Не обнаружены"]),
+            "",
+            "Рекомендации:",
+            *[f"  * {r}" for r in report.recommendations],
+        ]
+        stream_ops = ["BT", "/F1 11 Tf", "50 790 Td", "15 TL"]
+        for line in lines[:46]:
+            escaped = (
+                line.encode("utf-16-be").hex().upper()
+                if any(ord(ch) > 127 for ch in line)
+                else ""
+            )
+            ascii_safe = (
+                line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            )
+            if escaped:
+                stream_ops.append(f"<{escaped}> Tj T*")
+            else:
+                stream_ops.append(f"({ascii_safe}) Tj T*")
+        stream_ops.append("ET")
+        content = "\n".join(stream_ops).encode("latin-1", errors="replace")
+        html_comment = self.html(session, report).encode("utf-8")
+        objects = [
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+            b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+            f"5 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
+            + content
+            + b"\nendstream\nendobj\n",
+            f"6 0 obj\n<< /Length {len(html_comment)} >>\nstream\n".encode("ascii")
+            + html_comment
+            + b"\nendstream\nendobj\n",
+        ]
+        pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+        offsets = []
+        for obj in objects:
+            offsets.append(len(pdf))
+            pdf.extend(obj)
+        xref_pos = len(pdf)
+        pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii"))
+        for off in offsets:
+            pdf.extend(f"{off:010d} 00000 n \n".encode("ascii"))
+        pdf.extend(
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_pos}\n%%EOF\n".encode("ascii")
+        )
+        return bytes(pdf)
+
+    def export_pdf(self, session, report: Report, path: Path):
+        user = self.access.require(session)
+        data = self.pdf_bytes(session, report)
+        Path(path).write_bytes(data)
+        self.record_export(user, report, "pdf")
+
     def record_export(self, user, report, format_name):
         with self.db.transaction():
             self.db.execute(
@@ -238,3 +312,4 @@ class ReportService:
                     stamp(now()),
                 ),
             )
+

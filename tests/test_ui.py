@@ -1,13 +1,19 @@
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
 
-from energy_home.domain import AccessDenied, Screen
-from energy_home.ui.theme import configure_application
-from energy_home.ui.window import AppWindow
+from energy_home.qt_runtime import prepare_qt_environment
+
+prepare_qt_environment()
+
+pytest.importorskip("PySide6.QtCore")
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+from energy_home.domain import AccessDenied, Screen  # noqa: E402
+from energy_home.ui.theme import configure_application  # noqa: E402
+from energy_home.ui.window import AppWindow  # noqa: E402
 
 
 @pytest.fixture(scope="session")

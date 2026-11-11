@@ -1,7 +1,19 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from enum import StrEnum
 from zoneinfo import ZoneInfo
+
+try:
+    from datetime import UTC, datetime
+    from enum import StrEnum
+except ImportError:  # pragma: no cover
+    from datetime import datetime
+    from enum import Enum
+
+    UTC = ZoneInfo("UTC")
+
+    class StrEnum(str, Enum):
+        def __str__(self) -> str:
+            return str(self.value)
+
 
 LOCAL_TZ = ZoneInfo("Europe/Minsk")
 

@@ -5,6 +5,10 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from energy_home.qt_runtime import prepare_qt_environment  # noqa: E402
+
+prepare_qt_environment()
+
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from energy_home.auth import AccessControl  # noqa: E402

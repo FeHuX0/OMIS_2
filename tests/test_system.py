@@ -345,3 +345,55 @@ def test_complete_month_compares_all_days_of_longer_previous_month(system):
     report = reports.build(owner, "month", datetime(2026, 9, 1, tzinfo=LOCAL_TZ))
     assert report.previous_kwh == 7
     assert report.energy_kwh == 8
+
+
+def test_qt_runtime_sanitizes_conflicting_dlls_and_syncs_modern_crt(tmp_path, monkeypatch):
+    import os
+
+    from energy_home import qt_runtime
+
+    venv_root = tmp_path / "venv"
+    pyside_dir = venv_root / "Lib" / "site-packages" / "PySide6"
+    shiboken_dir = venv_root / "Lib" / "site-packages" / "shiboken6"
+    conflict_dir = tmp_path / "external_qt"
+    modern_crt_dir = tmp_path / "modern_crt"
+    old_crt_dir = tmp_path / "old_crt"
+
+    for d in (pyside_dir, shiboken_dir, conflict_dir, modern_crt_dir, old_crt_dir):
+        d.mkdir(parents=True, exist_ok=True)
+
+    (conflict_dir / "Qt6Core.dll").write_bytes(b"OLD_QT6_CORE")
+    (old_crt_dir / "msvcp140.dll").write_bytes(b"OLD_MSVCP_WITHOUT_SYMBOL")
+    (modern_crt_dir / "msvcp140.dll").write_bytes(b"HEADER_" + qt_runtime.MODERN_CRT_SYMBOL)
+    (modern_crt_dir / "vcruntime140.dll").write_bytes(b"VCRUNTIME140")
+
+    assert not qt_runtime._exports_modern_msvcp(old_crt_dir)
+    assert qt_runtime._exports_modern_msvcp(modern_crt_dir)
+
+    qt_runtime._sync_crt_into_pyside(modern_crt_dir, [pyside_dir])
+    assert qt_runtime._exports_modern_msvcp(pyside_dir)
+    assert (pyside_dir / "vcruntime140.dll").is_file()
+
+    monkeypatch.setenv("PATH", f"{conflict_dir}{os.pathsep}{old_crt_dir}")
+    qt_runtime._sanitize_path_env([pyside_dir, shiboken_dir], (venv_root.resolve(),))
+    path_entries = os.environ["PATH"].split(os.pathsep)
+    assert path_entries[0] == str(pyside_dir)
+    assert str(conflict_dir) not in path_entries
+
+
+def test_pure_python_pdf_export_and_web_controller(system, tmp_path):
+    _, _, _, reports, owner, *_ = system
+    target = tmp_path / "fallback.pdf"
+    reports.export_pdf(owner, reports.build(owner), target)
+    assert target.read_bytes().startswith(b"%PDF-1.4")
+    assert target.stat().st_size > 500
+
+    from energy_home.ui.web import WebController
+
+    ctrl = WebController(":memory:", demo=True)
+    session = ctrl.access.login("owner@demo.local", "Energy2026!")
+    state = ctrl.state_payload(session.token)
+    assert state["user"]["role"] == "owner"
+    assert len(state["devices"]) == 6
+    ctrl.db.close()
+
