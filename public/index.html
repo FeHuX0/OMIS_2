@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Energy Home — учёт энергопотребления</title>
-<meta name="description" content="Система автоматизированного учёта и анализа энергопотребления дома">
+<title>Energy Home</title>
+<meta name="description" content="Система автоматизированного учёта и анализа энергопотребления дома: приборы по комнатам, тарифы день/ночь, отчёты, бюджет, автоматизация и общие зоны.">
+<meta property="og:title" content="Energy Home">
+<meta property="og:description" content="Система автоматизированного учёта и анализа энергопотребления дома: приборы по комнатам, тарифы день/ночь, отчёты, бюджет, автоматизация и общие зоны.">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -271,6 +273,27 @@
     font-weight: 600;
     margin-bottom: 8px;
   }
+  .alert-banner {
+    background: #fff6f3;
+    border: 1px solid #e6b8ad;
+    border-left: 4px solid #b64634;
+    color: #7d2c1e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+  .zone-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eef5f0;
+    border: 1px solid #cbd9d0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
   .hidden { display: none !important; }
   @media (max-width: 860px) {
     .grid-3, .home-middle, .form-grid {
@@ -285,10 +308,11 @@
 
 <header id="app-header" class="header hidden">
   <div class="brand">ϟ  Energy Home</div>
-  <button type="button" id="nav-home" onclick="navigate('home')">Обзор</button>
+  <button type="button" id="nav-home" onclick="navigate('home')">Главное окно</button>
   <button type="button" id="nav-devices" onclick="navigate('devices')">Устройства</button>
   <button type="button" id="nav-reports" onclick="navigate('reports')">Отчёты</button>
   <button type="button" id="nav-settings" onclick="navigate('settings')">Настройки</button>
+  <button type="button" id="nav-back-home" class="hidden" onclick="navigate('home')">← Назад в главное меню</button>
   <div class="spacer"></div>
   <span id="profile-label" class="profile-text"></span>
   <button type="button" onclick="logout()">Выйти</button>
@@ -299,15 +323,15 @@
   <section id="screen-login" class="login-wrapper">
     <div class="card login-card">
       <div class="brand">ϟ  Energy Home</div>
-      <h1 class="title">Энергия под контролем</h1>
-      <p class="subtitle" style="margin-bottom:8px;">Потребление, расходы и забота о вашем доме.</p>
+      <h1 class="title">Авторизация</h1>
+      <p class="subtitle" style="margin-bottom:8px;">Учёт энергопотребления, расходы и забота о вашем доме.</p>
       <label for="login-input">Логин / E-mail</label>
-      <input id="login-input" type="text" placeholder="Ваш логин" value="owner@demo.local">
+      <input id="login-input" type="text" placeholder="user@example.com" value="owner@demo.local">
       <label for="password-input">Пароль</label>
       <input id="password-input" type="password" placeholder="Не менее 8 символов" value="Energy2026!">
       <div id="login-error" class="error-text" role="alert"></div>
       <button type="button" class="primary" onclick="doLogin()">Войти</button>
-      <button type="button" onclick="openRegisterModal()">Зарегистрировать свой дом</button>
+      <button type="button" onclick="openRegisterModal()">Зарегистрироваться</button>
       <button type="button" style="margin-top:4px;" onclick="openDemoHome()">Открыть демонстрационный дом</button>
       <p id="demo-hint" class="subtitle">Демо: owner@demo.local / Energy2026!</p>
     </div>
@@ -315,8 +339,10 @@
 
   <!-- 2. Обзор -->
   <section id="screen-home" class="page hidden">
-    <h1 class="title">Ваш дом сегодня</h1>
-    <p class="subtitle">Всё, что нужно знать об энергии дома.</p>
+    <h1 class="title">Учёт энергопотребления</h1>
+    <p class="subtitle">Главное окно — всё, что нужно знать об энергии дома.</p>
+
+    <div id="home-alert-banner" class="alert-banner hidden"></div>
 
     <div class="row" style="margin-top:16px;">
       <h2 id="home-name" class="section-title">Мой дом</h2>
@@ -369,24 +395,25 @@
     <div class="row">
       <button type="button" style="flex:1;" onclick="navigate('devices')">Устройства и приборы  →</button>
       <button type="button" style="flex:1;" onclick="navigate('reports')">Посмотреть статистику  →</button>
-      <button type="button" id="home-settings-btn" style="flex:1;" onclick="navigate('settings')">Настройки владельца  →</button>
-      <button type="button" style="flex:1;" onclick="openAssistantModal()">Помощник</button>
+      <button type="button" id="home-settings-btn" style="flex:1;" onclick="navigate('settings')">Настройки (Владелец)  →</button>
+      <button type="button" style="flex:1;" onclick="openAssistantModal()">Голосовой помощник</button>
     </div>
   </section>
 
   <!-- 3. Устройства -->
   <section id="screen-devices" class="page hidden">
-    <h1 class="title">Устройства и помещения</h1>
-    <p class="subtitle">Дерево комнат и приборов, состояние и поступление показаний.</p>
+    <h1 class="title">Управление устройствами и помещениями</h1>
+    <p class="subtitle">Список помещений и приборов, состояние и поступление показаний.</p>
 
     <div id="device-owner-toolbar" class="row" style="margin:14px 0;">
-      <button type="button" onclick="openAddRoomModal()">+ Добавить помещение</button>
-      <button type="button" onclick="openAddDeviceModal()">+ Добавить устройство</button>
+      <button type="button" onclick="openAddRoomModal()">+ Добавить новое помещение</button>
+      <button type="button" onclick="openAddDeviceModal()">+ Добавить новое устройство</button>
       <button type="button" onclick="openCsvImportModal()">Импорт CSV</button>
       <button type="button" onclick="openEventLogModal()">Журнал событий</button>
     </div>
 
-    <table class="data-table" style="margin-top:10px;">
+    <div style="font-weight:600;margin-top:8px;">Список помещений:</div>
+    <table class="data-table" style="margin-top:8px;">
       <thead>
         <tr>
           <th>Комната / прибор</th>
@@ -418,10 +445,11 @@
 
   <!-- 4. Отчёты -->
   <section id="screen-reports" class="page hidden">
-    <h1 class="title">Статистика и аналитика</h1>
-    <p class="subtitle">Расход по периодам, вклад приборов и рекомендации по экономии.</p>
+    <h1 class="title">Статистика и аналитика энергопотребления</h1>
+    <p class="subtitle">Период построения графика, вклад приборов, выявленные аномалии и рекомендации.</p>
 
     <div class="row" style="margin:14px 0;">
+      <label for="report-period" style="font-weight:600;">Период:</label>
       <select id="report-period" aria-label="Период отчёта" style="flex:1;">
         <option value="day">День</option>
         <option value="week">Неделя</option>
@@ -438,7 +466,7 @@
     <div id="report-summary" class="section-title" style="margin:12px 0;"></div>
 
     <div class="chart-box" style="margin-bottom:14px;">
-      <div class="chart-title">Расход электроэнергии, кВт·ч</div>
+      <div class="chart-title">График расхода (кВт·ч)</div>
       <svg id="report-chart-svg" viewBox="0 0 900 230" width="100%" height="230"></svg>
     </div>
 
@@ -454,15 +482,19 @@
       <tbody id="report-tbody"></tbody>
     </table>
 
-    <pre id="report-notes" style="font-family:inherit;font-size:13px;white-space:pre-wrap;line-height:1.5;margin:10px 0 16px;"></pre>
+    <div class="card" style="margin-bottom:14px;">
+      <h3 class="section-title" style="margin-bottom:8px;">Выявленные аномалии и рекомендации</h3>
+      <div id="report-anomalies" style="font-size:13px;margin-bottom:8px;"></div>
+      <pre id="report-notes" style="font-family:inherit;font-size:13px;white-space:pre-wrap;line-height:1.5;margin:0;"></pre>
+    </div>
 
     <button type="button" style="width:100%;" onclick="navigate('home')">← Назад в главное меню</button>
   </section>
 
   <!-- 5. Настройки -->
   <section id="screen-settings" class="page hidden">
-    <h1 class="title">Настройки дома</h1>
-    <p class="subtitle">Управление доступно владельцу дома.</p>
+    <h1 class="title">Настройки (Доступно владельцу)</h1>
+    <p class="subtitle">Тарифные зоны, лимиты, семейный доступ и направления развития системы.</p>
 
     <div class="tabs-bar">
       <button type="button" class="tab-btn active" id="tab-btn-tariffs" onclick="switchSettingsTab('tariffs')">Тарифы и лимиты</button>
@@ -474,13 +506,13 @@
 
     <div id="tab-tariffs" class="tab-pane">
       <div class="form-grid">
-        <label for="set-budget">Месячный лимит, BYN</label>
+        <label for="set-budget">Месячный лимит расходов (бел. руб.)</label>
         <input id="set-budget" type="number" step="0.01" min="0.01">
-        <label for="set-daily">Дневной лимит, кВт·ч</label>
+        <label for="set-daily">Дневной лимит (кВт·ч)</label>
         <input id="set-daily" type="number" step="0.01" min="0.01">
-        <label for="set-day-rate">День, BYN/кВт·ч</label>
+        <label for="set-day-rate">Стоимость день (бел. руб./кВт·ч)</label>
         <input id="set-day-rate" type="number" step="0.0001" min="0">
-        <label for="set-night-rate">Ночь, BYN/кВт·ч</label>
+        <label for="set-night-rate">Стоимость ночь (бел. руб./кВт·ч)</label>
         <input id="set-night-rate" type="number" step="0.0001" min="0">
         <label for="set-day-start">Начало дня, час</label>
         <input id="set-day-start" type="number" step="1" min="0" max="23">
@@ -490,7 +522,7 @@
       <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
         <label style="display:flex;align-items:center;gap:8px;">
           <input id="set-notify-80" type="checkbox">
-          <span>Уведомлять при достижении 80% месячного лимита</span>
+          <span>Отправлять уведомления при достижении 80% лимита</span>
         </label>
         <label style="display:flex;align-items:center;gap:8px;">
           <input id="set-auto-protect" type="checkbox">
@@ -519,7 +551,7 @@
     </div>
 
     <div id="tab-automation" class="tab-pane hidden">
-      <h3 class="section-title" style="margin-bottom:10px;">Сценарии и планировщик</h3>
+      <h3 class="section-title" style="margin-bottom:10px;">Сценарии, планировщик нагрузки и правила</h3>
       <p style="line-height:1.5;">
         Эко-режим выключает ожидающие приборы и переносит гибкую нагрузку на ночь.
         Отпуск выключает некритичные приборы. Приборы с отметкой «Не отключать в сценариях» продолжают работать.
@@ -533,20 +565,43 @@
         </select>
         <button type="button" class="primary" onclick="applyAutomationScenario()">Применить сценарий сейчас</button>
       </div>
-      <p class="subtitle">
-        Планировщик запускает отложенную нагрузку с наступлением ночной зоны, пока приложение открыто и владелец авторизован.
-      </p>
+
+      <h4 style="margin:16px 0 8px;">Планировщик нагрузки</h4>
+      <div class="row" style="margin-bottom:14px;">
+        <select id="reschedule-device" aria-label="Гибкий прибор"></select>
+        <input id="reschedule-time" type="text" value="23:00 (ночной тариф)" placeholder="Время переноса" style="width:200px;">
+        <button type="button" onclick="rescheduleDeviceLoad()">Перенести нагрузку</button>
+      </div>
+
+      <h4 style="margin:16px 0 8px;">Подсистема правил</h4>
+      <table class="data-table" style="margin-bottom:10px;">
+        <thead>
+          <tr><th>Условие</th><th>Действие</th><th>Статус</th></tr>
+        </thead>
+        <tbody id="rules-tbody"></tbody>
+      </table>
+      <div class="row">
+        <input id="rule-cond-in" type="text" placeholder="Условие (например, ночной тариф)" style="flex:1;">
+        <input id="rule-act-in" type="text" placeholder="Действие" style="flex:1;">
+        <button type="button" onclick="addAutomationRule()">+ Добавить правило</button>
+      </div>
     </div>
 
     <div id="tab-building" class="tab-pane hidden">
       <h3 class="section-title" style="margin-bottom:6px;">Многоквартирный дом и общие зоны</h3>
       <p class="subtitle" style="margin-bottom:12px;">
-        Введите показания квартир и общий расход за один и тот же период. Расчёт общих зон ведётся отдельно от личного счётчика дома.
+        Учёт общих зон (подъезд, лифт, парковка), распределение общедомового расхода и рейтинг энергоэффективности.
       </p>
+      <div id="zones-list" class="row" style="margin-bottom:12px;"></div>
       <div class="row" style="margin-bottom:12px;">
-        <label for="common-kwh">Общие зоны, кВт·ч</label>
+        <input id="zone-type-in" type="text" placeholder="Зона (подъезд, лифт...)" style="width:180px;">
+        <input id="zone-kwh-in" type="number" step="0.1" value="25" style="width:100px;">
+        <button type="button" onclick="addCommonZone()">Сохранить общую зону</button>
+      </div>
+      <div class="row" style="margin-bottom:12px;">
+        <label for="common-kwh">Итого общие зоны, кВт·ч</label>
         <input id="common-kwh" type="number" step="0.1" value="100" style="width:120px;">
-        <select id="alloc-method" aria-label="Метод распределения">
+        <select id="alloc-method" aria-label="Правило распределения">
           <option value="area">По площади</option>
           <option value="residents">По числу жильцов</option>
           <option value="equal">Поровну</option>
@@ -562,7 +617,8 @@
             <th>Личный расход</th>
             <th>Доля общих зон</th>
             <th>Итого, кВт·ч</th>
-            <th>Экономнее среднего</th>
+            <th>Рейтинг (балл)</th>
+            <th>Сравнение со средним</th>
           </tr>
         </thead>
         <tbody id="building-tbody"></tbody>
@@ -570,18 +626,25 @@
     </div>
 
     <div id="tab-integration" class="tab-pane hidden">
-      <h3 class="section-title" style="margin-bottom:12px;">Home Assistant</h3>
+      <h3 class="section-title" style="margin-bottom:12px;">Адаптеры умного дома и голосовой ассистент</h3>
       <div class="form-grid" style="margin-bottom:12px;">
-        <label for="ha-url">Адрес сервера</label>
+        <label for="ha-platform">Платформа (АдаптерУмногоДома)</label>
+        <select id="ha-platform">
+          <option value="home_assistant">Home Assistant (АдаптерHomeAssistant)</option>
+          <option value="yandex_alice">Яндекс.Алиса (АдаптерЯндексАлиса)</option>
+          <option value="google_home">Google Home (АдаптерGoogleHome)</option>
+        </select>
+        <label for="ha-url">Адрес сервера (Home Assistant)</label>
         <input id="ha-url" type="text" placeholder="http://homeassistant.local:8123">
         <label for="ha-token">Токен (не сохраняется)</label>
         <input id="ha-token" type="password" placeholder="Bearer-токен">
-        <label for="ha-entity">Датчик мощности</label>
+        <label for="ha-entity">Устройство / датчик</label>
         <input id="ha-entity" type="text" placeholder="sensor.power" value="sensor.power">
       </div>
       <div class="row">
-        <button type="button" onclick="checkHomeAssistant()">Проверить и прочитать мощность</button>
-        <button type="button" onclick="openAssistantModal()">Открыть помощника</button>
+        <button type="button" onclick="checkHomeAssistant()">Прочитать мощность (HA)</button>
+        <button type="button" onclick="sendSmartHomeCommand()">Передать команду адаптеру</button>
+        <button type="button" onclick="openAssistantModal()">Открыть голосового помощника</button>
       </div>
       <div id="ha-result" class="section-title" style="margin-top:12px;"></div>
     </div>
@@ -609,6 +672,16 @@ let currentScreen = 'login';
 let appState = null;
 let selectedDeviceId = null;
 let simTimer = null;
+const collapsedRoomIds = new Set();
+
+// Конечный автомат переходов между окнами (раздел 5.2 PDF)
+const ALLOWED_SCREEN_TRANSITIONS = {
+  login: ['home'],
+  home: ['home', 'devices', 'reports', 'settings'],
+  devices: ['home'],
+  reports: ['home'],
+  settings: ['home'],
+};
 
 async function apiPost(path, payload) {
   const res = await fetch(path, {
@@ -732,6 +805,11 @@ async function logout() {
 
 async function navigate(screen) {
   if (!sessionToken) return;
+  const allowed = ALLOWED_SCREEN_TRANSITIONS[currentScreen] || ['home'];
+  if (!allowed.includes(screen)) {
+    showNotice('Навигация (5.2)', 'Переход между дочерними окнами выполняется через Главное окно.');
+    return;
+  }
   await refreshState();
   if (screen === 'settings' && appState.user.role !== 'owner') {
     showNotice('Доступ', 'Настройки доступны только владельцу.');
@@ -743,7 +821,27 @@ async function navigate(screen) {
     const btn = document.getElementById('nav-' + s);
     if (btn) btn.classList.toggle('nav-active', s === screen);
   });
+  updateHeaderNav();
   await refreshState();
+}
+
+function updateHeaderNav() {
+  const onHome = currentScreen === 'home';
+  const isOwner = appState && appState.user && appState.user.role === 'owner';
+  document.getElementById('nav-home').classList.toggle('hidden', !onHome);
+  document.getElementById('nav-devices').classList.toggle('hidden', !onHome);
+  document.getElementById('nav-reports').classList.toggle('hidden', !onHome);
+  document.getElementById('nav-settings').classList.toggle('hidden', !onHome || !isOwner);
+  document.getElementById('nav-back-home').classList.toggle('hidden', onHome);
+}
+
+function toggleRoomCollapse(roomId) {
+  if (collapsedRoomIds.has(roomId)) {
+    collapsedRoomIds.delete(roomId);
+  } else {
+    collapsedRoomIds.add(roomId);
+  }
+  renderAll();
 }
 
 async function refreshState() {
@@ -754,12 +852,13 @@ async function refreshState() {
   const devFilter = document.getElementById(
     currentScreen === 'reports' ? 'report-device-filter' : 'home-device-filter'
   );
+  const commonInput = document.getElementById('common-kwh');
   const payload = {
     room_id: roomFilter && roomFilter.value ? Number(roomFilter.value) : null,
     device_id: devFilter && devFilter.value ? Number(devFilter.value) : null,
     period: document.getElementById('report-period').value || 'month',
     anchor: document.getElementById('report-date').value || null,
-    common_kwh: Number(document.getElementById('common-kwh').value || 100),
+    common_kwh: commonInput && commonInput.value !== '' ? Number(commonInput.value) : null,
     alloc_method: document.getElementById('alloc-method').value || 'area'
   };
   appState = await apiPost('/api/state', payload);
@@ -769,10 +868,18 @@ async function refreshState() {
 function renderAll() {
   if (!appState) return;
   const isOwner = appState.user.role === 'owner';
-  document.getElementById('profile-label').textContent = `${appState.user.name} · ${appState.user.role_label}`;
-  document.getElementById('nav-settings').classList.toggle('hidden', !isOwner);
+  document.getElementById('profile-label').textContent = `Профиль: ${appState.user.name} · ${appState.user.role_label}`;
+  updateHeaderNav();
   document.getElementById('home-settings-btn').classList.toggle('hidden', !isOwner);
   document.getElementById('sim-wrap').classList.toggle('hidden', !isOwner);
+
+  const alertBanner = document.getElementById('home-alert-banner');
+  if (appState.alerts && appState.alerts.length) {
+    alertBanner.textContent = appState.alerts.join(' ');
+    alertBanner.classList.remove('hidden');
+  } else {
+    alertBanner.classList.add('hidden');
+  }
 
   document.getElementById('home-name').textContent = appState.home.name;
   refillSelect('home-room-filter', appState.rooms, 'Все комнаты');
@@ -804,24 +911,28 @@ function renderAll() {
     `На связи: ${m.online_count} из ${m.total_devices} устройств · Обновлено ${m.updated_at} · ` +
     (simChecked ? 'Источник: локальный симулятор' : 'Показания: импорт CSV / ручной ввод');
 
-  // Устройства
+  // Устройства (сворачиваемое дерево помещений 5.3.3)
   document.getElementById('device-owner-toolbar').classList.toggle('hidden', !isOwner);
   document.getElementById('device-owner-actions').classList.toggle('hidden', !isOwner);
   const tbody = document.getElementById('devices-tbody');
   let rowsHtml = '';
   appState.rooms.forEach(room => {
-    rowsHtml += `<tr class="room-row"><td colspan="5">▾ ${room.name}</td></tr>`;
-    appState.devices.filter(d => d.room_id === room.id).forEach(d => {
-      const sel = d.id === selectedDeviceId ? 'selected-row' : '';
-      const stCls = d.state === 'emergency' ? 'state-emergency' : '';
-      rowsHtml += `<tr class="device-row ${sel}" onclick="selectDevice(${d.id})">
-        <td style="padding-left:28px;">${d.name}</td>
-        <td title="Серийный номер: ${d.serial}">${d.kind_label}</td>
-        <td class="${stCls}">${d.state_label}</td>
-        <td>${Math.round(d.power_w)} Вт</td>
-        <td>${d.last_seen}</td>
-      </tr>`;
-    });
+    const collapsed = collapsedRoomIds.has(room.id);
+    const marker = collapsed ? '+' : '−';
+    rowsHtml += `<tr class="room-row" style="cursor:pointer;" onclick="toggleRoomCollapse(${room.id})"><td colspan="5">${marker} ${room.name}</td></tr>`;
+    if (!collapsed) {
+      appState.devices.filter(d => d.room_id === room.id).forEach(d => {
+        const sel = d.id === selectedDeviceId ? 'selected-row' : '';
+        const stCls = d.state === 'emergency' ? 'state-emergency' : '';
+        rowsHtml += `<tr class="device-row ${sel}" onclick="selectDevice(${d.id})">
+          <td style="padding-left:28px;">${d.name}</td>
+          <td title="Серийный номер: ${d.serial}">${d.kind_label}</td>
+          <td class="${stCls}">${d.state_label}</td>
+          <td>${Math.round(d.power_w)} Вт</td>
+          <td>${d.last_seen}</td>
+        </tr>`;
+      });
+    }
   });
   tbody.innerHTML = rowsHtml;
   updateSelectedDeviceControls();
@@ -839,9 +950,15 @@ function renderAll() {
   document.getElementById('report-tbody').innerHTML = rep.devices.map(d =>
     `<tr><td>${d.name}</td><td>${d.room}</td><td>${d.energy_kwh.toFixed(3)}</td><td>${d.cost.toFixed(2)}</td></tr>`
   ).join('');
+  const anomEl = document.getElementById('report-anomalies');
+  if (rep.anomalies && rep.anomalies.length) {
+    anomEl.innerHTML = '<strong>Выявленные аномалии:</strong><br>' +
+      rep.anomalies.map(a => `⚠ ${a.message} (${a.created_at || ''})`).join('<br>');
+  } else {
+    anomEl.textContent = 'Выявленные аномалии: не обнаружены.';
+  }
   const notes = [
     `${rep.start} — ${rep.end} · Минск. Незавершённые периоды сравниваются за одинаковое прошедшее время.`,
-    ...rep.anomalies.map(a => `⚠ ${a.message}`),
     ...rep.recommendations.map(r => `• ${r}`)
   ];
   document.getElementById('report-notes').textContent = notes.join('\n');
@@ -868,6 +985,22 @@ function renderAll() {
       <td>${u.role === 'family' ? `<button type="button" onclick="toggleFamily(${u.id}, ${!u.active})">${u.active ? 'Отключить' : 'Включить'}</button>` : '—'}</td>
     </tr>
   `).join('');
+
+  // Планировщик и правила (4.2.3)
+  const flexDevs = appState.devices.filter(d => d.flexible);
+  refillSelect('reschedule-device', flexDevs.length ? flexDevs : appState.devices, 'Выберите прибор');
+  document.getElementById('rules-tbody').innerHTML = (appState.rules || []).map(r => `
+    <tr>
+      <td>${r.condition}</td>
+      <td>${r.action}</td>
+      <td>${r.enabled ? 'Активно' : 'Выключено'}</td>
+    </tr>
+  `).join('');
+
+  // Общие зоны и рейтинг (4.2.2)
+  document.getElementById('zones-list').innerHTML = (appState.common_zones || []).map(z =>
+    `<span class="zone-chip">${z.zone_type}: <strong>${z.kwh.toFixed(1)} кВт·ч</strong></span>`
+  ).join('');
   document.getElementById('building-tbody').innerHTML = (appState.apartments || []).map(a => `
     <tr>
       <td>${a.name}</td>
@@ -875,6 +1008,7 @@ function renderAll() {
       <td>${a.own_kwh.toFixed(2)}</td>
       <td>${a.common_kwh.toFixed(2)}</td>
       <td>${a.total_kwh.toFixed(2)}</td>
+      <td>${a.rating_score ?? 50} / 100</td>
       <td>${a.efficiency_percent >= 0 ? '+' : ''}${a.efficiency_percent.toFixed(1)}%</td>
     </tr>
   `).join('');
@@ -1011,6 +1145,68 @@ async function checkHomeAssistant() {
     resEl.textContent = `Получено: ${res.power_w.toFixed(2)} Вт`;
   } catch (err) {
     resEl.textContent = err.message;
+  }
+}
+
+async function sendSmartHomeCommand() {
+  const resEl = document.getElementById('ha-result');
+  resEl.textContent = 'Отправка команды…';
+  try {
+    const res = await apiPost('/api/smart-home-command', {
+      platform: document.getElementById('ha-platform').value,
+      url: document.getElementById('ha-url').value,
+      token: document.getElementById('ha-token').value,
+      entity: document.getElementById('ha-entity').value,
+      command: 'off'
+    });
+    resEl.textContent = `${res.reply} (${res.status})`;
+  } catch (err) {
+    resEl.textContent = err.message;
+  }
+}
+
+async function rescheduleDeviceLoad() {
+  const devId = Number(document.getElementById('reschedule-device').value);
+  const targetTime = document.getElementById('reschedule-time').value;
+  if (!devId) {
+    showNotice('Планировщик', 'Выберите прибор для переноса нагрузки.');
+    return;
+  }
+  try {
+    await apiPost('/api/reschedule-load', { device_id: devId, target_time: targetTime });
+    await refreshState();
+    showNotice('Планировщик нагрузки', `Нагрузка прибора перенесена на: ${targetTime}.`);
+  } catch (err) {
+    showNotice('Ошибка', err.message);
+  }
+}
+
+async function addAutomationRule() {
+  try {
+    await apiPost('/api/add-rule', {
+      condition: document.getElementById('rule-cond-in').value,
+      action: document.getElementById('rule-act-in').value
+    });
+    document.getElementById('rule-cond-in').value = '';
+    document.getElementById('rule-act-in').value = '';
+    await refreshState();
+  } catch (err) {
+    showNotice('Ошибка', err.message);
+  }
+}
+
+async function addCommonZone() {
+  try {
+    await apiPost('/api/add-common-zone', {
+      zone_type: document.getElementById('zone-type-in').value,
+      kwh: Number(document.getElementById('zone-kwh-in').value)
+    });
+    document.getElementById('zone-type-in').value = '';
+    await refreshState();
+    document.getElementById('common-kwh').value = appState.total_common_kwh;
+    await refreshState();
+  } catch (err) {
+    showNotice('Ошибка', err.message);
   }
 }
 
@@ -1190,15 +1386,32 @@ function openAddApartmentModal() {
   });
 }
 
+function speakReplyText(text) {
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ru-RU';
+      window.speechSynthesis.speak(utter);
+    }
+  } catch (_) {}
+}
+
 function openAssistantModal() {
-  openModal('Помощник: текст распознанной команды', `
-    <label>Команда</label>
+  openModal('Голосовой помощник', `
+    <label>Команда (распознатьКоманду)</label>
     <input id="voice-cmd" type="text" placeholder="Например: текущее потребление" value="текущее потребление">
-    <p class="subtitle">Доступные команды: текущее потребление; отчёт за месяц; эко-режим; отпуск; ночной тариф</p>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+      <input id="voice-speak" type="checkbox" checked>
+      <span>Озвучить ответ (озвучитьОтвет)</span>
+    </label>
+    <p class="subtitle">Доступные команды: текущее потребление; отчёт за месяц; эко-режим; отпуск; ночной тариф; выключить приборы; статус уведомлений</p>
   `, 'Выполнить', async () => {
+    const speak = document.getElementById('voice-speak').checked;
     const res = await apiPost('/api/assistant', { text: document.getElementById('voice-cmd').value });
     await refreshState();
-    setTimeout(() => showNotice('Помощник', res.reply), 50);
+    if (speak) speakReplyText(res.reply);
+    setTimeout(() => showNotice('Голосовой помощник', res.reply), 50);
   });
 }
 
