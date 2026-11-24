@@ -6,12 +6,16 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Optional
-from zoneinfo import ZoneInfo
 
-LOCAL_TZ = ZoneInfo("Europe/Minsk")
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    LOCAL_TZ: Any = ZoneInfo("Europe/Minsk")
+except (ImportError, ZoneInfoNotFoundError):
+    LOCAL_TZ = timezone(timedelta(hours=3), name="Europe/Minsk")
 
 
 class ОшибкаДомена(Exception):
