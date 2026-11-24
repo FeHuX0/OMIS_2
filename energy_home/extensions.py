@@ -1,4 +1,4 @@
-"""Три направления развития программной системы — 1:1 по диаграммам классов 4.2.1, 4.2.2, 4.2.3 (стр. 14–15)."""
+"""Three extension directions — 1:1 implementation of Class Diagrams 4.2.1, 4.2.2, 4.2.3 (pp. 14–15)."""
 
 from __future__ import annotations
 
@@ -9,305 +9,327 @@ from typing import Optional
 
 from energy_home.domain import (
     LOCAL_TZ,
-    Аномалия,
-    ДомКвартира,
-    ОшибкаВалидации,
-    Прибор,
-    Событие,
-    Тариф,
+    Anomaly,
+    Appliance,
+    Event,
+    Home,
+    Tariff,
+    ValidationError,
 )
-from energy_home.state_machine import СостояниеПрибора
+from energy_home.state_machine import DeviceState
 from energy_home.subsystems import (
-    ИнтерфейсПриложения,
-    ПодсистемаАнализа,
-    ПодсистемаОтчетности,
-    ПодсистемаУведомлений,
+    AnalysisSubsystem,
+    ApplicationInterface,
+    NotificationSubsystem,
+    ReportingSubsystem,
 )
 
 
 # ===========================================================================
-# 4.2.1 Направление 1: Голосовой ассистент и интеграция с умным домом (стр. 14)
+# 4.2.1 Extension 1: Voice Assistant & Smart Home Integration (page 14)
 # ===========================================================================
 
 
 @dataclass
-class ГолосоваяКоманда:
-    """Класс ГолосоваяКоманда (4.2.1): -текст: String, -намерение: String."""
+class VoiceCommand:
+    """UML `ГолосоваяКоманда` (4.2.1): text (текст), intent (намерение)."""
 
-    текст: str
-    намерение: str
+    text: str
+    intent: str
 
 
-class АдаптерУмногоДома(ABC):
-    """Абстрактный класс АдаптерУмногоДома (4.2.1): +передатьКоманду(устр, cmd), +получитьСобытия(): Event."""
-
-    @abstractmethod
-    def передатьКоманду(self, устр: Прибор | str, cmd: str) -> None:
-        """Передать команду внешнему устройству умного дома."""
+class SmartHomeAdapter(ABC):
+    """Abstract UML `АдаптерУмногоДома` (4.2.1): send_command(device, cmd), get_events()."""
 
     @abstractmethod
-    def получитьСобытия(self) -> Событие:
-        """Получить событие телеметрии от внешней платформы."""
+    def send_command(self, device: Appliance | str, cmd: str) -> None:
+        """UML method `+передатьКоманду(устр, cmd): void`."""
+
+    @abstractmethod
+    def get_events(self) -> Event:
+        """UML method `+получитьСобытия(): Event`."""
 
 
-class АдаптерЯндексАлиса(АдаптерУмногоДома):
-    """Класс АдаптерЯндексАлиса (4.2.1)."""
+class YandexAliceAdapter(SmartHomeAdapter):
+    """UML `АдаптерЯндексАлиса` (4.2.1)."""
 
     def __init__(self, skill_id: str = "energy-home-alice") -> None:
         self.skill_id = skill_id
-        self.история_команд: list[tuple[str, str]] = []
+        self.command_history: list[tuple[str, str]] = []
 
-    def передатьКоманду(self, устр: Прибор | str, cmd: str) -> None:
-        имя = устр.название if isinstance(устр, Прибор) else str(устр)
-        self.история_команд.append((имя, cmd))
+    def send_command(self, device: Appliance | str, cmd: str) -> None:
+        name = device.name if isinstance(device, Appliance) else str(device)
+        self.command_history.append((name, cmd))
 
-    def получитьСобытия(self) -> Событие:
-        return Событие(тип="yandex_alice_event", дата=datetime.now(LOCAL_TZ), описание=f"Навык {self.skill_id} активен")
+    def get_events(self) -> Event:
+        return Event(
+            event_type="yandex_alice_event",
+            timestamp=datetime.now(LOCAL_TZ),
+            description=f"Навык {self.skill_id} активен",
+        )
 
 
-class АдаптерGoogleHome(АдаптерУмногоДома):
-    """Класс АдаптерGoogleHome (4.2.1)."""
+class GoogleHomeAdapter(SmartHomeAdapter):
+    """UML `АдаптерGoogleHome` (4.2.1)."""
 
     def __init__(self, project_id: str = "energy-home-google") -> None:
         self.project_id = project_id
-        self.история_команд: list[tuple[str, str]] = []
+        self.command_history: list[tuple[str, str]] = []
 
-    def передатьКоманду(self, устр: Прибор | str, cmd: str) -> None:
-        имя = устр.название if isinstance(устр, Прибор) else str(устр)
-        self.история_команд.append((имя, cmd))
+    def send_command(self, device: Appliance | str, cmd: str) -> None:
+        name = device.name if isinstance(device, Appliance) else str(device)
+        self.command_history.append((name, cmd))
 
-    def получитьСобытия(self) -> Событие:
-        return Событие(тип="google_home_event", дата=datetime.now(LOCAL_TZ), описание=f"Проект {self.project_id} готов")
+    def get_events(self) -> Event:
+        return Event(
+            event_type="google_home_event",
+            timestamp=datetime.now(LOCAL_TZ),
+            description=f"Проект {self.project_id} готов",
+        )
 
 
-class АдаптерHomeAssistant(АдаптерУмногоДома):
-    """Класс АдаптерHomeAssistant (4.2.1)."""
+class HomeAssistantAdapter(SmartHomeAdapter):
+    """UML `АдаптерHomeAssistant` (4.2.1)."""
 
     def __init__(self, url: str = "http://homeassistant.local:8123") -> None:
         self.url = url
-        self.история_команд: list[tuple[str, str]] = []
+        self.command_history: list[tuple[str, str]] = []
 
-    def передатьКоманду(self, устр: Прибор | str, cmd: str) -> None:
-        имя = устр.название if isinstance(устр, Прибор) else str(устр)
-        self.история_команд.append((имя, cmd))
+    def send_command(self, device: Appliance | str, cmd: str) -> None:
+        name = device.name if isinstance(device, Appliance) else str(device)
+        self.command_history.append((name, cmd))
 
-    def получитьСобытия(self) -> Событие:
-        return Событие(тип="home_assistant_event", дата=datetime.now(LOCAL_TZ), описание=f"Шлюз {self.url} готов")
+    def get_events(self) -> Event:
+        return Event(
+            event_type="home_assistant_event",
+            timestamp=datetime.now(LOCAL_TZ),
+            description=f"Шлюз {self.url} готов",
+        )
 
 
-class ГолосовойАссистент:
-    """<<control>> Класс ГолосовойАссистент (4.2.1): +распознатьКоманду(аудио): ГолосоваяКоманда, +озвучитьОтвет(текст): void."""
+class VoiceAssistant:
+    """<<control>> UML `ГолосовойАссистент` (4.2.1): recognize_command(audio), speak_response(text)."""
 
-    НАМЕРЕНИЯ: dict[str, str] = {
-        "текущее потребление": "потребление",
-        "отчет за месяц": "отчет",
-        "отчёт за месяц": "отчет",
-        "выключить приборы": "выключить",
-        "эко-режим": "эко",
-        "ночной тариф": "ночной_тариф",
+    INTENTS: dict[str, str] = {
+        "текущее потребление": "consumption",
+        "отчет за месяц": "report",
+        "отчёт за месяц": "report",
+        "выключить приборы": "turn_off",
+        "эко-режим": "eco",
+        "ночной тариф": "night_tariff",
     }
 
     def __init__(
         self,
-        адаптер: Optional[АдаптерУмногоДома] = None,
-        интерфейс: Optional[ИнтерфейсПриложения] = None,
-        анализ: Optional[ПодсистемаАнализа] = None,
-        отчетность: Optional[ПодсистемаОтчетности] = None,
-        уведомления: Optional[ПодсистемаУведомлений] = None,
+        adapter: Optional[SmartHomeAdapter] = None,
+        app_interface: Optional[ApplicationInterface] = None,
+        analysis: Optional[AnalysisSubsystem] = None,
+        reporting: Optional[ReportingSubsystem] = None,
+        notifications: Optional[NotificationSubsystem] = None,
     ) -> None:
-        self.адаптер = адаптер or АдаптерHomeAssistant()
-        self.интерфейс = интерфейс
-        self.анализ = анализ
-        self.отчетность = отчетность
-        self.уведомления = уведомления
-        self.последний_ответ: str = ""
+        self.adapter = adapter or HomeAssistantAdapter()
+        self.app_interface = app_interface
+        self.analysis = analysis
+        self.reporting = reporting
+        self.notifications = notifications
+        self.last_response: str = ""
 
-    def распознатьКоманду(self, аудио: str | bytes) -> ГолосоваяКоманда:
-        текст = аудио.decode("utf-8", errors="ignore") if isinstance(аудио, bytes) else str(аудио)
-        ключ = текст.strip().lower()
-        намерение = self.НАМЕРЕНИЯ.get(ключ, "неизвестно")
-        return ГолосоваяКоманда(текст=текст.strip(), намерение=намерение)
+    def recognize_command(self, audio: str | bytes) -> VoiceCommand:
+        """UML method `+распознатьКоманду(аудио): ГолосоваяКоманда`."""
+        text = audio.decode("utf-8", errors="ignore") if isinstance(audio, bytes) else str(audio)
+        key = text.strip().lower()
+        intent = self.INTENTS.get(key, "unknown")
+        return VoiceCommand(text=text.strip(), intent=intent)
 
-    def озвучитьОтвет(self, текст: str) -> None:
-        self.последний_ответ = текст
+    def speak_response(self, text: str) -> None:
+        """UML method `+озвучитьОтвет(текст): void`."""
+        self.last_response = text
 
 
 # ===========================================================================
-# 4.2.2 Направление 2: Многоквартирный дом и общие зоны (стр. 14)
+# 4.2.2 Extension 2: Apartment Building & Common Zones (page 14)
 # ===========================================================================
 
 
 @dataclass
-class ОбщаяЗона:
-    """Класс ОбщаяЗона (4.2.2): -тип: String, +получитьРасход(): Double."""
+class CommonZone:
+    """UML `ОбщаяЗона` (4.2.2): zone_type (тип), get_consumption()."""
 
-    тип: str
-    расход_квтч: float = 0.0
+    zone_type: str
+    consumption_kwh: float = 0.0
 
-    def получитьРасход(self) -> float:
-        return round(float(self.расход_квтч), 2)
+    def get_consumption(self) -> float:
+        """UML method `+получитьРасход(): Double`."""
+        return round(float(self.consumption_kwh), 2)
 
 
 @dataclass
-class ПравилоРаспределения:
-    """Класс ПравилоРаспределения (4.2.2): -тип: String, +распределить(расход): Map."""
+class DistributionRule:
+    """UML `ПравилоРаспределения` (4.2.2): rule_type (тип), distribute(consumption)."""
 
-    тип: str = "по_площади"  # "по_площади" | "по_жильцам" | "поровну"
+    rule_type: str = "by_area"  # "by_area" | "by_residents" | "equal"
 
-    def распределить(
+    def distribute(
         self,
-        расход: float,
-        веса_квартир: Optional[dict[str, float]] = None,
+        consumption: float,
+        apartment_weights: Optional[dict[str, float]] = None,
     ) -> dict[str, float]:
-        if расход < 0:
-            raise ОшибкаВалидации("Общедомовой расход не может быть отрицательным.")
-        if not веса_квартир:
+        """UML method `+распределить(расход): Map`."""
+        if consumption < 0:
+            raise ValidationError("Общедомовой расход не может быть отрицательным.")
+        if not apartment_weights:
             return {}
-        if self.тип == "поровну":
-            доля = round(расход / len(веса_квартир), 2)
-            return {кв: доля for кв in веса_квартир}
-        сумма_весов = sum(max(0.0, float(w)) for w in веса_квартир.values())
-        if сумма_весов <= 0:
-            raise ОшибкаВалидации("Сумма весов распределения должна быть больше нуля.")
+        if self.rule_type == "equal":
+            share = round(consumption / len(apartment_weights), 2)
+            return {apt: share for apt in apartment_weights}
+        total_weight = sum(max(0.0, float(w)) for w in apartment_weights.values())
+        if total_weight <= 0:
+            raise ValidationError("Сумма весов распределения должна быть больше нуля.")
         return {
-            кв: round(расход * (float(вес) / сумма_весов), 2)
-            for кв, вес in веса_квартир.items()
+            apt: round(consumption * (float(weight) / total_weight), 2)
+            for apt, weight in apartment_weights.items()
         }
 
 
 @dataclass
-class РейтингЭнергоэффективности:
-    """Класс РейтингЭнергоэффективности (4.2.2): -балл: Double, +сравнитьСоСредним(): Double."""
+class EnergyEfficiencyRating:
+    """UML `РейтингЭнергоэффективности` (4.2.2): score (балл), compare_with_average()."""
 
-    балл: float = 50.0
-    расход_квартиры: float = 0.0
-    средний_расход_по_дому: float = 0.0
+    score: float = 50.0
+    apartment_consumption: float = 0.0
+    building_average: float = 0.0
 
-    def сравнитьСоСредним(self) -> float:
-        """Возвращает отклонение в процентах (положительное — экономичнее среднего по дому)."""
-        if self.средний_расход_по_дому <= 0:
+    def compare_with_average(self) -> float:
+        """UML method `+сравнитьСоСредним(): Double`."""
+        if self.building_average <= 0:
             return 0.0
-        процент = (1.0 - self.расход_квартиры / self.средний_расход_по_дому) * 100.0
-        self.балл = max(0.0, min(100.0, round(50.0 + процент, 1)))
-        return round(процент, 1)
+        percent = (1.0 - self.apartment_consumption / self.building_average) * 100.0
+        self.score = max(0.0, min(100.0, round(50.0 + percent, 1)))
+        return round(percent, 1)
 
 
 @dataclass
-class МногоквартирныйДом:
-    """Класс МногоквартирныйДом (4.2.2): -адрес: String, +получитьОбщийРасход(): Double."""
+class ApartmentBuilding:
+    """UML `МногоквартирныйДом` (4.2.2): address (адрес), get_total_consumption()."""
 
-    адрес: str
-    общие_зоны: list[ОбщаяЗона] = field(default_factory=list)
-    квартиры: list[ДомКвартира] = field(default_factory=list)
-    правило_распределения: ПравилоРаспределения = field(default_factory=ПравилоРаспределения)
+    address: str
+    common_zones: list[CommonZone] = field(default_factory=list)
+    apartments: list[Home] = field(default_factory=list)
+    distribution_rule: DistributionRule = field(default_factory=DistributionRule)
 
-    def получитьОбщийРасход(self) -> float:
-        общие = sum(з.получитьРасход() for з in self.общие_зоны)
-        квартирный = sum(кв.получитьОбщееПотребление() for кв in self.квартиры)
-        return round(общие + квартирный, 2)
+    def get_total_consumption(self) -> float:
+        """UML method `+получитьОбщийРасход(): Double`."""
+        common_total = sum(z.get_consumption() for z in self.common_zones)
+        apartments_total = sum(apt.get_total_consumption() for apt in self.apartments)
+        return round(common_total + apartments_total, 2)
 
 
 # ===========================================================================
-# 4.2.3 Направление 3: Умное автоматическое управление приборами (стр. 15)
+# 4.2.3 Extension 3: Smart Automatic Appliance Control (page 15)
 # ===========================================================================
 
 
 @dataclass
-class Правило:
-    """Класс Правило (4.2.3): -условие: String, -действие: String."""
+class Rule:
+    """UML `Правило` (4.2.3): condition (условие), action (действие)."""
 
-    условие: str
-    действие: str
+    condition: str
+    action: str
 
 
-class МодульУправленияУстройствами:
-    """<<control>> МодульУправленияУстройствами (4.2.3): +отключить(прибор): void, +включить(прибор): void."""
+class DeviceControlModule:
+    """<<control>> UML `МодульУправленияУстройствами` (4.2.3): turn_off(appliance), turn_on(appliance)."""
 
-    def отключить(self, прибор: Прибор) -> None:
-        if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-            прибор.автомат.выключить_прибор()
-        if прибор.устройство_учета:
-            прибор.устройство_учета.активно = False
+    def turn_off(self, appliance: Appliance) -> None:
+        """UML method `+отключить(прибор): void`."""
+        if appliance.state_machine.outer_state == DeviceState.ON:
+            appliance.state_machine.turn_off()
+        if appliance.metering_device:
+            appliance.metering_device.active = False
 
-    def включить(self, прибор: Прибор) -> None:
-        if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВЫКЛЮЧЕН:
-            прибор.автомат.включить_прибор()
-        if прибор.автомат.внутреннее_состояние == СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ:
-            прибор.автомат.сигнал_включения()
-        if прибор.устройство_учета:
-            прибор.устройство_учета.активно = True
+    def turn_on(self, appliance: Appliance) -> None:
+        """UML method `+включить(прибор): void`."""
+        if appliance.state_machine.outer_state == DeviceState.OFF:
+            appliance.state_machine.turn_on()
+        if appliance.state_machine.inner_state == DeviceState.IDLE_WAITING:
+            appliance.state_machine.start_operation()
+        if appliance.metering_device:
+            appliance.metering_device.active = True
 
 
 @dataclass
-class Сценарий:
-    """Класс Сценарий (4.2.3): -имя: String, +выполнить(): void."""
+class Scenario:
+    """UML `Сценарий` (4.2.3): name (имя), execute()."""
 
-    имя: str
-    приборы: list[Прибор] = field(default_factory=list)
-    модуль_управления: МодульУправленияУстройствами = field(default_factory=МодульУправленияУстройствами)
+    name: str
+    appliances: list[Appliance] = field(default_factory=list)
+    control_module: DeviceControlModule = field(default_factory=DeviceControlModule)
 
-    def выполнить(self) -> None:
-        имя_н = self.имя.strip().lower()
-        for прибор in self.приборы:
-            if прибор.критически_важный or прибор.автомат.внешнее_состояние in (
-                СостояниеПрибора.АВАРИЙНЫЙ_РЕЖИМ,
-                СостояниеПрибора.СПИСАН,
+    def execute(self) -> None:
+        """UML method `+выполнить(): void`."""
+        normalized = self.name.strip().lower()
+        for appliance in self.appliances:
+            if appliance.essential or appliance.state_machine.outer_state in (
+                DeviceState.EMERGENCY_MODE,
+                DeviceState.RETIRED,
             ):
                 continue
-            if имя_н in ("отпуск", "vacation"):
-                self.модуль_управления.отключить(прибор)
-            elif имя_н in ("эко-режим", "эко", "eco"):
-                if прибор.гибкая_нагрузка and прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-                    прибор.автомат.перейти_на_льготный_тариф()
-                elif прибор.автомат.внутреннее_состояние == СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ:
-                    self.модуль_управления.отключить(прибор)
-            elif имя_н in ("ночной тариф", "night_tariff"):
-                if прибор.гибкая_нагрузка and прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-                    прибор.автомат.перейти_на_льготный_тариф()
+            if normalized in ("отпуск", "vacation"):
+                self.control_module.turn_off(appliance)
+            elif normalized in ("эко-режим", "эко", "eco"):
+                if appliance.flexible_load and appliance.state_machine.outer_state == DeviceState.ON:
+                    appliance.state_machine.switch_to_off_peak()
+                elif appliance.state_machine.inner_state == DeviceState.IDLE_WAITING:
+                    self.control_module.turn_off(appliance)
+            elif normalized in ("ночной тариф", "night_tariff"):
+                if appliance.flexible_load and appliance.state_machine.outer_state == DeviceState.ON:
+                    appliance.state_machine.switch_to_off_peak()
 
 
-class ПланировщикНагрузки:
-    """<<control>> ПланировщикНагрузки (4.2.3): +перенестиНагрузку(прибор, время): void."""
-
-    def __init__(
-        self,
-        модуль_управления: Optional[МодульУправленияУстройствами] = None,
-        тариф: Optional[Тариф] = None,
-    ) -> None:
-        self.модуль_управления = модуль_управления or МодульУправленияУстройствами()
-        self.тариф = тариф or Тариф()
-        self.расписание: list[tuple[str, str]] = []
-
-    def перенестиНагрузку(self, прибор: Прибор, время: str | datetime) -> None:
-        if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВЫКЛЮЧЕН:
-            self.модуль_управления.включить(прибор)
-        if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-            прибор.автомат.перейти_на_льготный_тариф()
-        метка = время.isoformat() if isinstance(время, datetime) else str(время)
-        self.расписание.append((прибор.название, метка))
-
-
-class ПодсистемаПравил:
-    """<<control>> ПодсистемаПравил (4.2.3): +проверитьПравило(событие): Boolean."""
+class LoadScheduler:
+    """<<control>> UML `ПланировщикНагрузки` (4.2.3): reschedule_load(appliance, target_time)."""
 
     def __init__(
         self,
-        правила: Optional[list[Правило]] = None,
-        сценарии: Optional[list[Сценарий]] = None,
-        анализ: Optional[ПодсистемаАнализа] = None,
+        control_module: Optional[DeviceControlModule] = None,
+        tariff: Optional[Tariff] = None,
     ) -> None:
-        self.правила: list[Правило] = правила if правила is not None else [
-            Правило(условие="аномалия", действие="аварийное обесточивание линии"),
-            Правило(условие="ночной тариф", действие="перенос гибкой нагрузки"),
+        self.control_module = control_module or DeviceControlModule()
+        self.tariff = tariff or Tariff()
+        self.schedule: list[tuple[str, str]] = []
+
+    def reschedule_load(self, appliance: Appliance, target_time: str | datetime) -> None:
+        """UML method `+перенестиНагрузку(прибор, время): void`."""
+        if appliance.state_machine.outer_state == DeviceState.OFF:
+            self.control_module.turn_on(appliance)
+        if appliance.state_machine.outer_state == DeviceState.ON:
+            appliance.state_machine.switch_to_off_peak()
+        label = target_time.isoformat() if isinstance(target_time, datetime) else str(target_time)
+        self.schedule.append((appliance.name, label))
+
+
+class RuleSubsystem:
+    """<<control>> UML `ПодсистемаПравил` (4.2.3): check_rule(event)."""
+
+    def __init__(
+        self,
+        rules: Optional[list[Rule]] = None,
+        scenarios: Optional[list[Scenario]] = None,
+        analysis: Optional[AnalysisSubsystem] = None,
+    ) -> None:
+        self.rules: list[Rule] = rules if rules is not None else [
+            Rule(condition="аномалия", action="аварийное обесточивание линии"),
+            Rule(condition="ночной тариф", action="перенос гибкой нагрузки"),
         ]
-        self.сценарии: list[Сценарий] = сценарии if сценарии is not None else []
-        self.анализ = анализ
+        self.scenarios: list[Scenario] = scenarios if scenarios is not None else []
+        self.analysis = analysis
 
-    def проверитьПравило(self, событие: Событие | Аномалия | str) -> bool:
-        if isinstance(событие, Аномалия):
-            строка = событие.тип.lower()
-        elif isinstance(событие, Событие):
-            строка = f"{событие.тип} {событие.описание}".lower()
+    def check_rule(self, event: Event | Anomaly | str) -> bool:
+        """UML method `+проверитьПравило(событие): Boolean`."""
+        if isinstance(event, Anomaly):
+            text = event.anomaly_type.lower()
+        elif isinstance(event, Event):
+            text = f"{event.event_type} {event.description}".lower()
         else:
-            строка = str(событие).lower()
-        return any(п.условие.lower() in строка for п in self.правила)
+            text = str(event).lower()
+        return any(rule.condition.lower() in text for rule in self.rules)

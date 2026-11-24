@@ -1,4 +1,4 @@
-"""Конечные автоматы (Этап 5: диаграммы состояний 5.1 и 5.2 из 1laba_full.pdf)."""
+"""State machines (Stage 5: State Diagrams 5.1 and 5.2 from 1laba_full_fc613401.pdf)."""
 
 from __future__ import annotations
 
@@ -7,194 +7,177 @@ from enum import Enum
 from typing import Callable, Optional
 
 
-class СостояниеПрибора(str, Enum):
-    """Состояния и подсостояния жизненного цикла умного прибора (диаграмма 5.1, стр. 16)."""
+class DeviceState(str, Enum):
+    """Smart appliance lifecycle states and substates (Diagram 5.1, page 16)."""
 
-    # Верхнеуровневые (композитные) состояния
-    ВЫКЛЮЧЕН = "Выключен"
-    ВКЛЮЧЕН = "Включен"
-    АВАРИЙНЫЙ_РЕЖИМ = "Аварийный_режим"
-    СПИСАН = "Списан"
+    # Top-level (composite) states
+    OFF = "Выключен"
+    ON = "Включен"
+    EMERGENCY_MODE = "Аварийный_режим"
+    RETIRED = "Списан"
 
-    # Внутренние состояния «Выключен»
-    РЕЖИМ_ОБЕСТОЧИВАНИЯ = "РежимОбесточивания"
+    # Substates of OFF
+    POWER_OFF_MODE = "РежимОбесточивания"
 
-    # Внутренние состояния «Включен»
-    ОЖИДАНИЕ_АКТИВНОСТИ = "Ожидание_активности"
-    РАБОТА_В_ШТАТНОМ_РЕЖИМЕ = "Работа_в_штатном_режиме"
-    ГИБКАЯ_НАГРУЗКА = "Гибкая_нагрузка"
+    # Substates of ON
+    IDLE_WAITING = "Ожидание_активности"
+    NORMAL_OPERATION = "Работа_в_штатном_режиме"
+    FLEXIBLE_LOAD = "Гибкая_нагрузка"
 
-    # Внутренние состояния «Аварийный_режим»
-    ОБНАРУЖЕНИЕ_АНОМАЛИИ = "Обнаружение_аномалии"
-    ОТКЛЮЧЕНИЕ_ЛИНИИ = "Отключение_линии"
+    # Substates of EMERGENCY_MODE
+    ANOMALY_DETECTED = "Обнаружение_аномалии"
+    LINE_DISCONNECTED = "Отключение_линии"
 
 
 @dataclass
-class АвтоматСостоянийПрибора:
-    """Реализация шаблона «Состояние» для умного прибора по диаграмме 5.1 (стр. 16)."""
+class DeviceStateMachine:
+    """State pattern implementation for a smart appliance per Diagram 5.1 (page 16)."""
 
-    внешнее_состояние: СостояниеПрибора = СостояниеПрибора.ВЫКЛЮЧЕН
-    внутреннее_состояние: Optional[СостояниеПрибора] = СостояниеПрибора.РЕЖИМ_ОБЕСТОЧИВАНИЯ
-    журнал_переходов: list[str] = field(default_factory=list)
+    outer_state: DeviceState = DeviceState.OFF
+    inner_state: Optional[DeviceState] = DeviceState.POWER_OFF_MODE
+    transition_log: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if not self.журнал_переходов:
-            self.журнал_переходов.append(
-                "подача питания выключена -> Выключен / РежимОбесточивания (entry: полный сброс питания)"
+        if not self.transition_log:
+            self.transition_log.append(
+                "power off -> OFF / POWER_OFF_MODE (entry: full power reset)"
             )
 
     @property
-    def текущее_состояние(self) -> СостояниеПрибора:
-        return self.внутреннее_состояние or self.внешнее_состояние
+    def current_state(self) -> DeviceState:
+        return self.inner_state or self.outer_state
 
-    def включить_прибор(self) -> СостояниеПрибора:
-        """Выключен -> Включен (вход в Ожидание_активности)."""
-        if self.внешнее_состояние != СостояниеПрибора.ВЫКЛЮЧЕН:
+    def turn_on(self) -> DeviceState:
+        """OFF -> ON (enters IDLE_WAITING)."""
+        if self.outer_state != DeviceState.OFF:
             raise ValueError(
-                f"Нельзя включить прибор из состояния «{self.внешнее_состояние.value}»."
+                f"Нельзя включить прибор из состояния «{self.outer_state.value}»."
             )
-        self.внешнее_состояние = СостояниеПрибора.ВКЛЮЧЕН
-        self.внутреннее_состояние = СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ
-        self.журнал_переходов.append(
-            "включить прибор / подать питание -> Включен / Ожидание_активности"
-        )
-        return self.текущее_состояние
+        self.outer_state = DeviceState.ON
+        self.inner_state = DeviceState.IDLE_WAITING
+        self.transition_log.append("turn_on -> ON / IDLE_WAITING")
+        return self.current_state
 
-    def выключить_прибор(self) -> СостояниеПрибора:
-        """Включен -> Выключен (entry: полный сброс питания)."""
-        if self.внешнее_состояние != СостояниеПрибора.ВКЛЮЧЕН:
+    def turn_off(self) -> DeviceState:
+        """ON -> OFF (entry: full power reset)."""
+        if self.outer_state != DeviceState.ON:
             raise ValueError(
-                f"Нельзя выключить прибор из состояния «{self.внешнее_состояние.value}»."
+                f"Нельзя выключить прибор из состояния «{self.outer_state.value}»."
             )
-        self.внешнее_состояние = СостояниеПрибора.ВЫКЛЮЧЕН
-        self.внутреннее_состояние = СостояниеПрибора.РЕЖИМ_ОБЕСТОЧИВАНИЯ
-        self.журнал_переходов.append(
-            "выключить прибор -> Выключен / РежимОбесточивания (entry: полный сброс питания)"
-        )
-        return self.текущее_состояние
+        self.outer_state = DeviceState.OFF
+        self.inner_state = DeviceState.POWER_OFF_MODE
+        self.transition_log.append("turn_off -> OFF / POWER_OFF_MODE")
+        return self.current_state
 
-    def сигнал_включения(self) -> СостояниеПрибора:
-        """Ожидание_активности -> Работа_в_штатном_режиме (сигнал включения / старт работы)."""
+    def start_operation(self) -> DeviceState:
+        """IDLE_WAITING -> NORMAL_OPERATION (power-on signal / start)."""
         if (
-            self.внешнее_состояние != СостояниеПрибора.ВКЛЮЧЕН
-            or self.внутреннее_состояние != СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ
+            self.outer_state != DeviceState.ON
+            or self.inner_state != DeviceState.IDLE_WAITING
         ):
             raise ValueError(
-                f"Старт работы доступен только из «Ожидание_активности», сейчас «{self.текущее_состояние.value}»."
+                f"Старт работы доступен только из «Ожидание_активности», сейчас «{self.current_state.value}»."
             )
-        self.внутреннее_состояние = СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ
-        self.журнал_переходов.append(
-            "сигнал включения / старт работы -> Работа_в_штатном_режиме"
-        )
-        return self.текущее_состояние
+        self.inner_state = DeviceState.NORMAL_OPERATION
+        self.transition_log.append("start_operation -> NORMAL_OPERATION")
+        return self.current_state
 
-    def перейти_на_льготный_тариф(self) -> СостояниеПрибора:
-        """Работа_в_штатном_режиме -> Гибкая_нагрузка ([наступило время льготного тарифа])."""
-        if self.внешнее_состояние != СостояниеПрибора.ВКЛЮЧЕН or self.внутреннее_состояние not in (
-            СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ,
-            СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ,
+    def switch_to_off_peak(self) -> DeviceState:
+        """NORMAL_OPERATION -> FLEXIBLE_LOAD ([off-peak tariff window active])."""
+        if self.outer_state != DeviceState.ON or self.inner_state not in (
+            DeviceState.NORMAL_OPERATION,
+            DeviceState.IDLE_WAITING,
         ):
             raise ValueError(
-                f"Перенос в гибкую нагрузку недоступен из состояния «{self.текущее_состояние.value}»."
+                f"Перенос в гибкую нагрузку недоступен из состояния «{self.current_state.value}»."
             )
-        self.внутреннее_состояние = СостояниеПрибора.ГИБКАЯ_НАГРУЗКА
-        self.журнал_переходов.append(
-            "[наступило время льготного тарифа] -> Гибкая_нагрузка"
-        )
-        return self.текущее_состояние
+        self.inner_state = DeviceState.FLEXIBLE_LOAD
+        self.transition_log.append("switch_to_off_peak -> FLEXIBLE_LOAD")
+        return self.current_state
 
-    def завершить_цикл_гибкой_нагрузки(self) -> СостояниеПрибора:
-        """Гибкая_нагрузка -> Работа_в_штатном_режиме ([завершение цикла работы])."""
-        if self.внутреннее_состояние != СостояниеПрибора.ГИБКАЯ_НАГРУЗКА:
+    def finish_flexible_cycle(self) -> DeviceState:
+        """FLEXIBLE_LOAD -> NORMAL_OPERATION ([work cycle completed])."""
+        if self.inner_state != DeviceState.FLEXIBLE_LOAD:
             raise ValueError(
-                f"Завершение гибкого цикла доступно только из «Гибкая_нагрузка», сейчас «{self.текущее_состояние.value}»."
+                f"Завершение гибкого цикла доступно только из «Гибкая_нагрузка», сейчас «{self.current_state.value}»."
             )
-        self.внутреннее_состояние = СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ
-        self.журнал_переходов.append(
-            "[завершение цикла работы] -> Работа_в_штатном_режиме"
-        )
-        return self.текущее_состояние
+        self.inner_state = DeviceState.NORMAL_OPERATION
+        self.transition_log.append("finish_flexible_cycle -> NORMAL_OPERATION")
+        return self.current_state
 
-    def штатное_завершение_работы(self) -> СостояниеПрибора:
-        """Работа_в_штатном_режиме -> Ожидание_активности (штатное завершение работы)."""
-        if self.внутреннее_состояние != СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ:
+    def finish_normal_operation(self) -> DeviceState:
+        """NORMAL_OPERATION -> IDLE_WAITING (normal work completion)."""
+        if self.inner_state != DeviceState.NORMAL_OPERATION:
             raise ValueError(
-                f"Штатное завершение доступно только из «Работа_в_штатном_режиме», сейчас «{self.текущее_состояние.value}»."
+                f"Штатное завершение доступно только из «Работа_в_штатном_режиме», сейчас «{self.current_state.value}»."
             )
-        self.внутреннее_состояние = СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ
-        self.журнал_переходов.append(
-            "штатное завершение работы -> Ожидание_активности"
-        )
-        return self.текущее_состояние
+        self.inner_state = DeviceState.IDLE_WAITING
+        self.transition_log.append("finish_normal_operation -> IDLE_WAITING")
+        return self.current_state
 
-    def событие_аномалии(
+    def trigger_anomaly(
         self,
-        превышен_критический_порог: bool = True,
-        уведомить: Optional[Callable[[], None]] = None,
-    ) -> СостояниеПрибора:
-        """Включен -> Аварийный_режим -> Обнаружение_аномалии [-> Отключение_линии]."""
-        if self.внешнее_состояние != СостояниеПрибора.ВКЛЮЧЕН:
+        critical_threshold_exceeded: bool = True,
+        notify_callback: Optional[Callable[[], None]] = None,
+    ) -> DeviceState:
+        """ON -> EMERGENCY_MODE -> ANOMALY_DETECTED [-> LINE_DISCONNECTED]."""
+        if self.outer_state != DeviceState.ON:
             raise ValueError(
-                f"Аварийный режим может наступить только для включённого прибора, сейчас «{self.внешнее_состояние.value}»."
+                f"Аварийный режим может наступить только для включённого прибора, сейчас «{self.outer_state.value}»."
             )
-        self.внешнее_состояние = СостояниеПрибора.АВАРИЙНЫЙ_РЕЖИМ
-        self.внутреннее_состояние = СостояниеПрибора.ОБНАРУЖЕНИЕ_АНОМАЛИИ
-        self.журнал_переходов.append(
-            "событие аномалии / сработал датчик защиты -> Аварийный_режим / Обнаружение_аномалии"
-        )
-        if превышен_критический_порог:
-            if уведомить is not None:
-                уведомить()
-            self.внутреннее_состояние = СостояниеПрибора.ОТКЛЮЧЕНИЕ_ЛИНИИ
-            self.журнал_переходов.append(
-                "[превышен критический порог] / отправить уведомление -> Отключение_линии (entry: аварийное обесточивание прибора)"
+        self.outer_state = DeviceState.EMERGENCY_MODE
+        self.inner_state = DeviceState.ANOMALY_DETECTED
+        self.transition_log.append("trigger_anomaly -> EMERGENCY_MODE / ANOMALY_DETECTED")
+        if critical_threshold_exceeded:
+            if notify_callback is not None:
+                notify_callback()
+            self.inner_state = DeviceState.LINE_DISCONNECTED
+            self.transition_log.append(
+                "critical_threshold_exceeded -> LINE_DISCONNECTED (emergency shutdown)"
             )
-        return self.текущее_состояние
+        return self.current_state
 
-    def устранение_аварии(self) -> СостояниеПрибора:
-        """Аварийный_режим -> Выключен (устранение аварии / сброс ошибки)."""
-        if self.внешнее_состояние != СостояниеПрибора.АВАРИЙНЫЙ_РЕЖИМ:
+    def clear_fault(self) -> DeviceState:
+        """EMERGENCY_MODE -> OFF (fault cleared / error reset)."""
+        if self.outer_state != DeviceState.EMERGENCY_MODE:
             raise ValueError(
-                f"Сброс ошибки доступен только в аварийном режиме, сейчас «{self.внешнее_состояние.value}»."
+                f"Сброс ошибки доступен только в аварийном режиме, сейчас «{self.outer_state.value}»."
             )
-        self.внешнее_состояние = СостояниеПрибора.ВЫКЛЮЧЕН
-        self.внутреннее_состояние = СостояниеПрибора.РЕЖИМ_ОБЕСТОЧИВАНИЯ
-        self.журнал_переходов.append(
-            "устранение аварии / сброс ошибки -> Выключен / РежимОбесточивания"
-        )
-        return self.текущее_состояние
+        self.outer_state = DeviceState.OFF
+        self.inner_state = DeviceState.POWER_OFF_MODE
+        self.transition_log.append("clear_fault -> OFF / POWER_OFF_MODE")
+        return self.current_state
 
-    def списать_устройство(self) -> СостояниеПрибора:
-        """Включен (или Выключен) -> Списан (удаление устройства из системы / списание)."""
-        if self.внешнее_состояние == СостояниеПрибора.СПИСАН:
+    def retire(self) -> DeviceState:
+        """ON or OFF -> RETIRED (device removed / decommissioned)."""
+        if self.outer_state == DeviceState.RETIRED:
             raise ValueError("Устройство уже списано.")
-        self.внешнее_состояние = СостояниеПрибора.СПИСАН
-        self.внутреннее_состояние = None
-        self.журнал_переходов.append("удаление устройства из системы / списание -> Списан")
-        return self.текущее_состояние
+        self.outer_state = DeviceState.RETIRED
+        self.inner_state = None
+        self.transition_log.append("retire -> RETIRED")
+        return self.current_state
 
-    def доступные_действия(self) -> list[dict[str, str]]:
-        """Список допустимых переходов из текущего состояния для UI."""
-        if self.внешнее_состояние == СостояниеПрибора.ВЫКЛЮЧЕН:
+    def available_actions(self) -> list[dict[str, str]]:
+        """List valid transitions from the current state for the UI."""
+        if self.outer_state == DeviceState.OFF:
             return [
                 {"id": "enable", "label": "Включить прибор / подать питание"},
                 {"id": "retire", "label": "Списать устройство"},
             ]
-        if self.внешнее_состояние == СостояниеПрибора.АВАРИЙНЫЙ_РЕЖИМ:
+        if self.outer_state == DeviceState.EMERGENCY_MODE:
             return [
                 {"id": "reset", "label": "Устранение аварии / сброс ошибки"},
             ]
-        if self.внешнее_состояние == СостояниеПрибора.СПИСАН:
+        if self.outer_state == DeviceState.RETIRED:
             return []
-        # Включен
         actions: list[dict[str, str]] = []
-        if self.внутреннее_состояние == СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ:
+        if self.inner_state == DeviceState.IDLE_WAITING:
             actions.append({"id": "start", "label": "Сигнал включения / старт работы"})
             actions.append({"id": "flexible", "label": "Перенести на льготный тариф"})
-        elif self.внутреннее_состояние == СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ:
+        elif self.inner_state == DeviceState.NORMAL_OPERATION:
             actions.append({"id": "flexible", "label": "Перенести на льготный тариф"})
             actions.append({"id": "finish", "label": "Штатное завершение работы"})
-        elif self.внутреннее_состояние == СостояниеПрибора.ГИБКАЯ_НАГРУЗКА:
+        elif self.inner_state == DeviceState.FLEXIBLE_LOAD:
             actions.append({"id": "finish_flexible", "label": "Завершить цикл гибкой нагрузки"})
         actions.append({"id": "anomaly", "label": "Событие аномалии (тест защиты)"})
         actions.append({"id": "disable", "label": "Выключить прибор"})
@@ -202,53 +185,53 @@ class АвтоматСостоянийПрибора:
         return actions
 
 
-class СостояниеОкна(str, Enum):
-    """5 окон приложения по диаграмме состояний 5.2 (стр. 17)."""
+class WindowState(str, Enum):
+    """Five application windows per State Diagram 5.2 (page 17)."""
 
-    ОКНО_АВТОРИЗАЦИИ = "ОкноАвторизации"
-    ГЛАВНОЕ_ОКНО = "ГлавноеОкно"
-    ОКНО_УСТРОЙСТВ = "ОкноУстройств"
-    ОКНО_ОТЧЕТОВ = "ОкноОтчетов"
-    ОКНО_НАСТРОЕК = "ОкноНастроек"
-    ЗАКРЫТО = "Закрыто"
+    AUTH_WINDOW = "auth"
+    MAIN_WINDOW = "main"
+    DEVICES_WINDOW = "devices"
+    REPORTS_WINDOW = "reports"
+    SETTINGS_WINDOW = "settings"
+    CLOSED = "closed"
 
 
 @dataclass
-class АвтоматПереходовОкон:
-    """Конечный автомат переходов между 5 окнами по диаграмме 5.2 (стр. 17)."""
+class WindowTransitionFSM:
+    """Finite state machine for transitions between the 5 windows (Diagram 5.2, page 17)."""
 
-    текущее_окно: СостояниеОкна = СостояниеОкна.ОКНО_АВТОРИЗАЦИИ
+    current_window: WindowState = WindowState.AUTH_WINDOW
 
-    РАЗРЕШЕННЫЕ_ПЕРЕХОДЫ: dict[СостояниеОкна, tuple[СостояниеОкна, ...]] = field(
+    ALLOWED_TRANSITIONS: dict[WindowState, tuple[WindowState, ...]] = field(
         default_factory=lambda: {
-            СостояниеОкна.ОКНО_АВТОРИЗАЦИИ: (
-                СостояниеОкна.ОКНО_АВТОРИЗАЦИИ,
-                СостояниеОкна.ГЛАВНОЕ_ОКНО,
+            WindowState.AUTH_WINDOW: (
+                WindowState.AUTH_WINDOW,
+                WindowState.MAIN_WINDOW,
             ),
-            СостояниеОкна.ГЛАВНОЕ_ОКНО: (
-                СостояниеОкна.ГЛАВНОЕ_ОКНО,
-                СостояниеОкна.ОКНО_УСТРОЙСТВ,
-                СостояниеОкна.ОКНО_ОТЧЕТОВ,
-                СостояниеОкна.ОКНО_НАСТРОЕК,
-                СостояниеОкна.ОКНО_АВТОРИЗАЦИИ,
-                СостояниеОкна.ЗАКРЫТО,
+            WindowState.MAIN_WINDOW: (
+                WindowState.MAIN_WINDOW,
+                WindowState.DEVICES_WINDOW,
+                WindowState.REPORTS_WINDOW,
+                WindowState.SETTINGS_WINDOW,
+                WindowState.AUTH_WINDOW,
+                WindowState.CLOSED,
             ),
-            СостояниеОкна.ОКНО_УСТРОЙСТВ: (СостояниеОкна.ГЛАВНОЕ_ОКНО,),
-            СостояниеОкна.ОКНО_ОТЧЕТОВ: (СостояниеОкна.ГЛАВНОЕ_ОКНО,),
-            СостояниеОкна.ОКНО_НАСТРОЕК: (СостояниеОкна.ГЛАВНОЕ_ОКНО,),
-            СостояниеОкна.ЗАКРЫТО: (),
+            WindowState.DEVICES_WINDOW: (WindowState.MAIN_WINDOW,),
+            WindowState.REPORTS_WINDOW: (WindowState.MAIN_WINDOW,),
+            WindowState.SETTINGS_WINDOW: (WindowState.MAIN_WINDOW,),
+            WindowState.CLOSED: (),
         },
         repr=False,
     )
 
-    def перейти(self, целевое_окно: СостояниеОкна, роль_владелец: bool = False) -> СостояниеОкна:
-        """Выполнить переход по графу 5.2 с проверкой охранного условия [Роль == Владелец]."""
-        разрешенные = self.РАЗРЕШЕННЫЕ_ПЕРЕХОДЫ.get(self.текущее_окно, ())
-        if целевое_окно not in разрешенные:
+    def transition(self, target_window: WindowState, is_owner: bool = False) -> WindowState:
+        """Transition between screens per Diagram 5.2 enforcing [Role == Owner] for settings."""
+        allowed = self.ALLOWED_TRANSITIONS.get(self.current_window, ())
+        if target_window not in allowed:
             raise ValueError(
-                f"Переход из «{self.текущее_окно.value}» в «{целевое_окно.value}» запрещён диаграммой 5.2."
+                f"Переход из «{self.current_window.value}» в «{target_window.value}» запрещён диаграммой 5.2."
             )
-        if целевое_окно == СостояниеОкна.ОКНО_НАСТРОЕК and not роль_владелец:
+        if target_window == WindowState.SETTINGS_WINDOW and not is_owner:
             raise PermissionError("Доступ к «ОкноНастроек» разрешён только при [Роль == Владелец].")
-        self.текущее_окно = целевое_окно
-        return self.текущее_окно
+        self.current_window = target_window
+        return self.current_window

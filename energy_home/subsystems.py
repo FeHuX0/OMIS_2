@@ -1,767 +1,785 @@
-"""Подсистемы программной системы — 1:1 по базовой диаграмме классов 4.1 (стр. 13) и Sequence 3.3 (стр. 12)."""
+"""Subsystems — 1:1 implementation of Base Class Diagram 4.1 (page 13) and Sequence 3.3 (page 12)."""
 
 from __future__ import annotations
 
 import secrets
 import time
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from energy_home.domain import (
     LOCAL_TZ,
-    Аномалия,
-    ДомКвартира,
-    Комната,
-    Лимит,
-    Отчет,
-    ОшибкаВалидации,
-    ОшибкаДоступа,
-    Показание,
-    Пользователь,
-    Прибор,
-    Роль,
-    Событие,
-    Тариф,
-    Уведомление,
-    УстройствоУчета,
+    AccessDeniedError,
+    Anomaly,
+    Appliance,
     Chart,
-    хешировать_пароль,
+    Event,
+    Home,
+    Limit,
+    MeteringDevice,
+    Notification,
+    Reading,
+    Report,
+    Role,
+    Room,
+    Tariff,
+    User,
+    ValidationError,
+    hash_password,
 )
 from energy_home.state_machine import (
-    АвтоматПереходовОкон,
-    СостояниеОкна,
-    СостояниеПрибора,
+    DeviceState,
+    WindowState,
+    WindowTransitionFSM,
 )
 
 
-class ПодсистемаХранения:
-    """<<infrastructure>> Подсистема хранения (4.1, стр. 13): +сохранить(объект), +найти(критерий)."""
+class StorageSubsystem:
+    """<<infrastructure>> UML `Подсистема хранения` (4.1, page 13): save(obj), find(criteria)."""
 
     def __init__(self) -> None:
-        self.пользователи: list[Пользователь] = []
-        self.дома: list[ДомКвартира] = []
-        self.тарифы: list[Тариф] = []
-        self.лимиты: list[Лимит] = []
-        self.показания: list[Показание] = []
-        self.события: list[Событие] = []
-        self.аномалии: list[Аномалия] = []
-        self.уведомления: list[Уведомление] = []
-        self.отчеты: list[Отчет] = []
-        self._серии_по_периодам: dict[str, dict[str, Any]] = {}
-        self._счетчик_комнат = 0
-        self._счетчик_приборов = 0
+        self.users: list[User] = []
+        self.homes: list[Home] = []
+        self.tariffs: list[Tariff] = []
+        self.limits: list[Limit] = []
+        self.readings: list[Reading] = []
+        self.events: list[Event] = []
+        self.anomalies: list[Anomaly] = []
+        self.notifications: list[Notification] = []
+        self.reports: list[Report] = []
+        self._period_series: dict[str, dict[str, Any]] = {}
+        self._room_seq = 0
+        self._appliance_seq = 0
 
-    def сохранить(self, объект: Any) -> None:
-        """Сохранить сущность предметной области в хранилище (метод 4.1)."""
-        if isinstance(объект, Пользователь):
-            if объект not in self.пользователи:
-                self.пользователи.append(объект)
-        elif isinstance(объект, ДомКвартира):
-            if объект not in self.дома:
-                self.дома.append(объект)
-        elif isinstance(объект, Тариф):
-            self.тарифы.append(объект)
-        elif isinstance(объект, Лимит):
-            self.лимиты.append(объект)
-        elif isinstance(объект, Показание):
-            self.показания.append(объект)
-        elif isinstance(объект, Событие):
-            self.события.append(объект)
-        elif isinstance(объект, Аномалия):
-            self.аномалии.append(объект)
-        elif isinstance(объект, Уведомление):
-            self.уведомления.append(объект)
-        elif isinstance(объект, Отчет):
-            self.отчеты.append(объект)
+    def save(self, obj: Any) -> None:
+        """UML method `+сохранить(объект): void`."""
+        if isinstance(obj, User):
+            if obj not in self.users:
+                self.users.append(obj)
+        elif isinstance(obj, Home):
+            if obj not in self.homes:
+                self.homes.append(obj)
+        elif isinstance(obj, Tariff):
+            self.tariffs.append(obj)
+        elif isinstance(obj, Limit):
+            self.limits.append(obj)
+        elif isinstance(obj, Reading):
+            self.readings.append(obj)
+        elif isinstance(obj, Event):
+            self.events.append(obj)
+        elif isinstance(obj, Anomaly):
+            self.anomalies.append(obj)
+        elif isinstance(obj, Notification):
+            self.notifications.append(obj)
+        elif isinstance(obj, Report):
+            self.reports.append(obj)
         else:
-            raise ОшибкаВалидации(f"Неподдерживаемый тип объекта для хранения: {type(объект).__name__}")
+            raise ValidationError(f"Неподдерживаемый тип объекта для хранения: {type(obj).__name__}")
 
-    def найти(self, критерий: Any) -> list[Any]:
-        """Найти объекты в хранилище по типу, имени коллекции или предикату (метод 4.1)."""
-        if callable(критерий):
-            все = (
-                self.пользователи
-                + self.дома
-                + self.тарифы
-                + self.лимиты
-                + self.показания
-                + self.события
-                + self.аномалии
-                + self.уведомления
-                + self.отчеты
+    def find(self, criteria: Any) -> list[Any]:
+        """UML method `+найти(критерий): List`."""
+        if callable(criteria):
+            all_items = (
+                self.users
+                + self.homes
+                + self.tariffs
+                + self.limits
+                + self.readings
+                + self.events
+                + self.anomalies
+                + self.notifications
+                + self.reports
             )
-            return [x for x in все if критерий(x)]
+            return [x for x in all_items if criteria(x)]
 
-        карта: dict[Any, list[Any]] = {
-            Пользователь: self.пользователи,
-            ДомКвартира: self.дома,
-            Тариф: self.тарифы,
-            Лимит: self.лимиты,
-            Показание: self.показания,
-            Событие: self.события,
-            Аномалия: self.аномалии,
-            Уведомление: self.уведомления,
-            Отчет: self.отчеты,
-            "пользователи": self.пользователи,
-            "дома": self.дома,
-            "тарифы": self.тарифы,
-            "лимиты": self.лимиты,
-            "показания": self.показания,
-            "события": self.события,
-            "аномалии": self.аномалии,
-            "уведомления": self.уведомления,
-            "отчеты": self.отчеты,
+        collection_map: dict[Any, list[Any]] = {
+            User: self.users,
+            Home: self.homes,
+            Tariff: self.tariffs,
+            Limit: self.limits,
+            Reading: self.readings,
+            Event: self.events,
+            Anomaly: self.anomalies,
+            Notification: self.notifications,
+            Report: self.reports,
+            "users": self.users,
+            "homes": self.homes,
+            "tariffs": self.tariffs,
+            "limits": self.limits,
+            "readings": self.readings,
+            "events": self.events,
+            "anomalies": self.anomalies,
+            "notifications": self.notifications,
+            "reports": self.reports,
         }
 
-        if isinstance(критерий, dict):
-            тип_объекта = критерий.get("тип")
-            список = карта.get(тип_объекта, [])
-            результат = []
-            for элемент in список:
-                совпало = True
-                for ключ, значение in критерий.items():
-                    if ключ == "тип":
+        if isinstance(criteria, dict):
+            obj_type = criteria.get("type")
+            items = collection_map.get(obj_type, [])
+            result = []
+            for item in items:
+                matched = True
+                for key, value in criteria.items():
+                    if key == "type":
                         continue
-                    if getattr(элемент, ключ, None) != значение:
-                        совпало = False
+                    if getattr(item, key, None) != value:
+                        matched = False
                         break
-                if совпало:
-                    результат.append(элемент)
-            return результат
+                if matched:
+                    result.append(item)
+            return result
 
-        return list(карта.get(критерий, []))
+        return list(collection_map.get(criteria, []))
 
-    def активный_тариф(self) -> Тариф:
-        if not self.тарифы:
-            тариф = Тариф()
-            self.сохранить(тариф)
-            return тариф
-        return self.тарифы[-1]
+    def active_tariff(self) -> Tariff:
+        if not self.tariffs:
+            tariff = Tariff()
+            self.save(tariff)
+            return tariff
+        return self.tariffs[-1]
 
-    def активный_лимит(self) -> Лимит:
-        if not self.лимиты:
-            лимит = Лимит()
-            self.сохранить(лимит)
-            return лимит
-        return self.лимиты[-1]
+    def active_limit(self) -> Limit:
+        if not self.limits:
+            limit = Limit()
+            self.save(limit)
+            return limit
+        return self.limits[-1]
 
-    def следующий_id_комнаты(self) -> int:
-        self._счетчик_комнат += 1
-        return self._счетчик_комнат
+    def next_room_id(self) -> int:
+        self._room_seq += 1
+        return self._room_seq
 
-    def следующий_id_прибора(self) -> int:
-        self._счетчик_приборов += 1
-        return self._счетчик_приборов
+    def next_appliance_id(self) -> int:
+        self._appliance_seq += 1
+        return self._appliance_seq
 
 
-class ПодсистемаУправленияДоступом:
-    """<<control>> Подсистема управления доступом (4.1, стр. 13): +проверитьПрава(пользователь, действие): Boolean."""
+class AccessControlSubsystem:
+    """<<control>> UML `Подсистема управления доступом` (4.1, page 13): check_permissions(user, action)."""
 
-    ПРАВА_ПО_РОЛЯМ: dict[Роль, set[str]] = {
-        Роль.ВЛАДЕЛЕЦ: {
-            "просмотр_потребления",
-            "просмотр_уведомлений",
-            "просмотр_отчетов",
-            "просмотр_устройств",
-            "настройка_тарифов_и_лимитов",
-            "регистрация_устройств",
-            "регистрация_помещений",
-            "управление_устройствами",
-            "управление_доступом",
+    ROLE_PERMISSIONS: dict[Role, set[str]] = {
+        Role.OWNER: {
+            "view_consumption",
+            "view_notifications",
+            "view_reports",
+            "view_devices",
+            "configure_tariffs_and_limits",
+            "register_devices",
+            "register_rooms",
+            "manage_devices",
+            "manage_access",
         },
-        Роль.ЧЛЕН_СЕМЬИ: {
-            "просмотр_потребления",
-            "просмотр_уведомлений",
-            "просмотр_отчетов",
-            "просмотр_устройств",
+        Role.FAMILY_MEMBER: {
+            "view_consumption",
+            "view_notifications",
+            "view_reports",
+            "view_devices",
         },
     }
 
-    def __init__(self, хранение: ПодсистемаХранения) -> None:
-        self.хранение = хранение
-        self._сеансы: dict[str, Пользователь] = {}
-        self._неудачные_попытки: dict[str, list[float]] = {}
+    def __init__(self, storage: StorageSubsystem) -> None:
+        self.storage = storage
+        self._sessions: dict[str, User] = {}
+        self._failed_attempts: dict[str, list[float]] = {}
 
-    def проверитьПрава(self, пользователь: Optional[Пользователь], действие: str) -> bool:
-        """Проверка прав пользователя на выполнение действия (метод 4.1)."""
-        if пользователь is None or not пользователь.активен:
+    def check_permissions(self, user: Optional[User], action: str) -> bool:
+        """UML method `+проверитьПрава(пользователь, действие): Boolean`."""
+        if user is None or not user.active:
             return False
-        return действие in self.ПРАВА_ПО_РОЛЯМ.get(пользователь.роль, set())
+        return action in self.ROLE_PERMISSIONS.get(user.role, set())
 
-    def требовать_права(self, пользователь: Optional[Пользователь], действие: str) -> None:
-        if not self.проверитьПрава(пользователь, действие):
-            if действие == "настройка_тарифов_и_лимитов":
-                raise ОшибкаДоступа("Настройки доступны только владельцу дома ([Роль == Владелец]).")
-            raise ОшибкаДоступа("Недостаточно прав для выполнения операции.")
+    def require_permission(self, user: Optional[User], action: str) -> None:
+        if not self.check_permissions(user, action):
+            if action == "configure_tariffs_and_limits":
+                raise AccessDeniedError("Настройки доступны только владельцу дома ([Роль == Владелец]).")
+            raise AccessDeniedError("Недостаточно прав для выполнения операции.")
 
-    def войти(self, логин: str, пароль: str) -> tuple[str, Пользователь]:
-        ключ = (логин or "").strip().lower()
-        сейчас = time.time()
-        попытки = [t for t in self._неудачные_попытки.get(ключ, []) if сейчас - t < 60.0]
-        if len(попытки) >= 5:
-            raise ОшибкаДоступа("Слишком много неудачных попыток входа. Повторите через минуту.")
+    def login(self, login: str, password: str) -> tuple[str, User]:
+        key = (login or "").strip().lower()
+        now = time.time()
+        attempts = [t for t in self._failed_attempts.get(key, []) if now - t < 60.0]
+        if len(attempts) >= 5:
+            raise AccessDeniedError("Слишком много неудачных попыток входа. Повторите через минуту.")
 
-        кандидаты = [u for u in self.хранение.пользователи if u.логин.lower() == ключ]
-        пользователь = кандидаты[0] if кандидаты else None
-        if пользователь is None or not пользователь.авторизоваться(пароль):
-            попытки.append(сейчас)
-            self._неудачные_попытки[ключ] = попытки
-            self.хранение.сохранить(
-                Событие(тип="ошибка_авторизации", дата=datetime.now(LOCAL_TZ), описание=f"Неудачный вход: {ключ}")
+        candidates = [u for u in self.storage.users if u.login.lower() == key]
+        user = candidates[0] if candidates else None
+        if user is None or not user.authenticate(password):
+            attempts.append(now)
+            self._failed_attempts[key] = attempts
+            self.storage.save(
+                Event(
+                    event_type="auth_failed",
+                    timestamp=datetime.now(LOCAL_TZ),
+                    description=f"Неудачный вход: {key}",
+                )
             )
-            raise ОшибкаДоступа("Неверный логин или пароль.")
+            raise AccessDeniedError("Неверный логин или пароль.")
 
-        self._неудачные_попытки.pop(ключ, None)
-        токен = secrets.token_urlsafe(32)
-        self._сеансы[токен] = пользователь
-        self.хранение.сохранить(
-            Событие(тип="вход_в_систему", дата=datetime.now(LOCAL_TZ), описание="Вход пользователя", пользователь=пользователь.логин)
+        self._failed_attempts.pop(key, None)
+        token = secrets.token_urlsafe(32)
+        self._sessions[token] = user
+        self.storage.save(
+            Event(
+                event_type="login",
+                timestamp=datetime.now(LOCAL_TZ),
+                description="Вход пользователя",
+                user_login=user.login,
+            )
         )
-        return токен, пользователь
+        return token, user
 
-    def выйти(self, токен: Optional[str]) -> None:
-        if токен and токен in self._сеансы:
-            пользователь = self._сеансы.pop(токен)
-            self.хранение.сохранить(
-                Событие(тип="выход_из_системы", дата=datetime.now(LOCAL_TZ), описание="Выход", пользователь=пользователь.логин)
+    def logout(self, token: Optional[str]) -> None:
+        if token and token in self._sessions:
+            user = self._sessions.pop(token)
+            self.storage.save(
+                Event(
+                    event_type="logout",
+                    timestamp=datetime.now(LOCAL_TZ),
+                    description="Выход",
+                    user_login=user.login,
+                )
             )
 
-    def получить_пользователя(self, токен: Optional[str]) -> Пользователь:
-        if not токен or токен not in self._сеансы:
-            raise ОшибкаДоступа("Требуется авторизация.")
-        пользователь = self._сеансы[токен]
-        if not пользователь.активен:
-            raise ОшибкаДоступа("Учётная запись отключена.")
-        return пользователь
+    def get_user(self, token: Optional[str]) -> User:
+        if not token or token not in self._sessions:
+            raise AccessDeniedError("Требуется авторизация.")
+        user = self._sessions[token]
+        if not user.active:
+            raise AccessDeniedError("Учётная запись отключена.")
+        return user
 
-    def зарегистрировать(
+    def register(
         self,
-        логин: str,
-        пароль: str,
-        имя: str = "",
-        роль: Роль = Роль.ВЛАДЕЛЕЦ,
-        дом: Optional[ДомКвартира] = None,
-    ) -> tuple[str, Пользователь]:
-        чистый_логин = (логин or "").strip().lower()
-        if not чистый_логин or "@" not in чистый_логин or len(чистый_логин) > 120:
-            raise ОшибкаВалидации("Укажите корректный Login / E-mail.")
-        if any(u.логин.lower() == чистый_логин for u in self.хранение.пользователи):
-            raise ОшибкаВалидации("Пользователь с таким Login / E-mail уже существует.")
-        хеш = хешировать_пароль(пароль)
-        целевой_дом = дом
-        if целевой_дом is None:
-            if роль == Роль.ЧЛЕН_СЕМЬИ and self.хранение.дома:
-                целевой_дом = self.хранение.дома[0]
+        login: str,
+        password: str,
+        name: str = "",
+        role: Role = Role.OWNER,
+        home: Optional[Home] = None,
+    ) -> tuple[str, User]:
+        clean_login = (login or "").strip().lower()
+        if not clean_login or "@" not in clean_login or len(clean_login) > 120:
+            raise ValidationError("Укажите корректный Login / E-mail.")
+        if any(u.login.lower() == clean_login for u in self.storage.users):
+            raise ValidationError("Пользователь с таким Login / E-mail уже существует.")
+        encoded = hash_password(password)
+        target_home = home
+        if target_home is None:
+            if role == Role.FAMILY_MEMBER and self.storage.homes:
+                target_home = self.storage.homes[0]
             else:
-                целевой_дом = ДомКвартира(адрес="Мой дом", комнаты=[])
-                self.хранение.сохранить(целевой_дом)
-        пользователь = Пользователь(
-            логин=чистый_логин,
-            пароль=хеш,
-            роль=роль,
-            дом=целевой_дом,
-            имя=(имя or чистый_логин.split("@")[0]).strip(),
+                target_home = Home(address="Мой дом", rooms=[])
+                self.storage.save(target_home)
+        user = User(
+            login=clean_login,
+            password=encoded,
+            role=role,
+            home=target_home,
+            name=(name or clean_login.split("@")[0]).strip(),
         )
-        self.хранение.сохранить(пользователь)
-        self.хранение.сохранить(
-            Событие(
-                тип="регистрация",
-                дата=datetime.now(LOCAL_TZ),
-                описание=f"Зарегистрирован пользователь {чистый_логин} ({роль.value})",
-                пользователь=чистый_логин,
+        self.storage.save(user)
+        self.storage.save(
+            Event(
+                event_type="registration",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"Зарегистрирован пользователь {clean_login} ({role.value})",
+                user_login=clean_login,
             )
         )
-        return self.войти(чистый_логин, пароль)
+        return self.login(clean_login, password)
 
 
-class ПодсистемаСбораДанных:
-    """<<control>> Подсистема сбора данных (4.1, стр. 13): +опроситьУстройства(): List, +сохранитьПоказания(): void."""
+class DataCollectionSubsystem:
+    """<<control>> UML `Подсистема сбора данных` (4.1, page 13): poll_devices(), save_readings()."""
 
-    def __init__(self, хранение: ПодсистемаХранения) -> None:
-        self.хранение = хранение
-        self._буфер_показаний: list[Показание] = []
+    def __init__(self, storage: StorageSubsystem) -> None:
+        self.storage = storage
+        self._reading_buffer: list[Reading] = []
 
-    def опроситьУстройства(self, дом: Optional[ДомКвартира] = None) -> list[Показание]:
-        """Опросить все устройства учёта в доме и собрать показания (метод 4.1)."""
-        целевой_дом = дом or (self.хранение.дома[0] if self.хранение.дома else None)
-        if целевой_дом is None:
+    def poll_devices(self, home: Optional[Home] = None) -> list[Reading]:
+        """UML method `+опроситьУстройства(): List`."""
+        target_home = home or (self.storage.homes[0] if self.storage.homes else None)
+        if target_home is None:
             return []
-        собранные: list[Показание] = []
-        тариф = self.хранение.активный_тариф()
-        for комната in целевой_дом.комнаты:
-            for прибор in комната.приборы:
-                устройство = прибор.устройство_учета
-                if устройство is None:
+        collected: list[Reading] = []
+        tariff = self.storage.active_tariff()
+        for room in target_home.rooms:
+            for appliance in room.appliances:
+                device = appliance.metering_device
+                if device is None:
                     continue
-                устройство.тариф = тариф
-                if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-                    показание = устройство.считатьПоказание(мощность_вт=прибор.текущая_мощность_вт())
-                    показание.комната = комната.название
-                    показание.прибор = прибор.название
-                    собранные.append(показание)
-        self._буфер_показаний.extend(собранные)
-        return собранные
+                device.tariff = tariff
+                if appliance.state_machine.outer_state == DeviceState.ON:
+                    reading = device.read_measurement(power_w=appliance.current_power_w())
+                    reading.room_name = room.name
+                    reading.appliance_name = appliance.name
+                    collected.append(reading)
+        self._reading_buffer.extend(collected)
+        return collected
 
-    def сохранитьПоказания(self, показания: Optional[list[Показание]] = None) -> None:
-        """Валидировать и сохранить показания в ПодсистемаХранения (метод 4.1 и BPMN стр. 10)."""
-        к_сохранению = self._буфер_показаний if показания is None else показания
-        for п in list(к_сохранению):
-            if п.значение < 0 or п.мощность_вт < 0:
-                self.хранение.сохранить(
-                    Событие(
-                        тип="ошибка_валидации",
-                        дата=datetime.now(LOCAL_TZ),
-                        описание=f"Некорректное показание: значение={п.значение}, мощность={п.мощность_вт}",
+    def save_readings(self, readings: Optional[list[Reading]] = None) -> None:
+        """UML method `+сохранитьПоказания(): void` (also BPMN validation step, page 10)."""
+        items = self._reading_buffer if readings is None else readings
+        for r in list(items):
+            if r.value < 0 or r.power_w < 0:
+                self.storage.save(
+                    Event(
+                        event_type="validation_error",
+                        timestamp=datetime.now(LOCAL_TZ),
+                        description=f"Некорректное показание: значение={r.value}, мощность={r.power_w}",
                     )
                 )
                 continue
-            if п.тариф is None:
-                п.тариф = self.хранение.активный_тариф()
-            self.хранение.сохранить(п)
-        if показания is None:
-            self._буфер_показаний.clear()
+            if r.tariff is None:
+                r.tariff = self.storage.active_tariff()
+            self.storage.save(r)
+        if readings is None:
+            self._reading_buffer.clear()
 
 
-class ПодсистемаАнализа:
-    """<<control>> Подсистема анализа (4.1, стр. 13): +рассчитатьРасход(): Double, +выявитьАномалии(): List."""
+class AnalysisSubsystem:
+    """<<control>> UML `Подсистема анализа` (4.1, page 13): calculate_consumption(), detect_anomalies()."""
 
-    def __init__(self, хранение: ПодсистемаХранения) -> None:
-        self.хранение = хранение
+    def __init__(self, storage: StorageSubsystem) -> None:
+        self.storage = storage
 
-    def рассчитатьРасход(self, дом: Optional[ДомКвартира] = None, период: Optional[str] = None) -> float:
-        """Рассчитать суммарный расход электроэнергии в кВт·ч (метод 4.1)."""
-        if период and период in self.хранение._серии_по_периодам:
-            значения = self.хранение._серии_по_периодам[период]["значения"]
-            return round(sum(float(v) for v in значения), 2)
-        целевой_дом = дом or (self.хранение.дома[0] if self.хранение.дома else None)
-        if целевой_дом is not None:
-            return целевой_дом.получитьОбщееПотребление()
-        return round(sum(п.значение for п in self.хранение.показания), 2)
+    def calculate_consumption(self, home: Optional[Home] = None, period: Optional[str] = None) -> float:
+        """UML method `+рассчитатьРасход(): Double`."""
+        if period and period in self.storage._period_series:
+            values = self.storage._period_series[period]["values"]
+            return round(sum(float(v) for v in values), 2)
+        target_home = home or (self.storage.homes[0] if self.storage.homes else None)
+        if target_home is not None:
+            return target_home.get_total_consumption()
+        return round(sum(r.value for r in self.storage.readings), 2)
 
-    def выявитьАномалии(
+    def detect_anomalies(
         self,
-        дом: Optional[ДомКвартира] = None,
-        критический_множитель: float = 1.2,
-    ) -> list[Аномалия]:
-        """Выявить скачки мощности и вернуть список аномалий (метод 4.1)."""
-        найденные: list[Аномалия] = list(self.хранение.аномалии)
-        целевой_дом = дом or (self.хранение.дома[0] if self.хранение.дома else None)
-        if целевой_дом is None:
-            return найденные
+        home: Optional[Home] = None,
+        spike_multiplier: float = 1.2,
+    ) -> list[Anomaly]:
+        """UML method `+выявитьАномалии(): List`."""
+        found: list[Anomaly] = list(self.storage.anomalies)
+        target_home = home or (self.storage.homes[0] if self.storage.homes else None)
+        if target_home is None:
+            return found
 
-        for комната in целевой_дом.комнаты:
-            for прибор in комната.приборы:
-                if прибор.устройство_учета is None or прибор.мощность <= 0:
+        for room in target_home.rooms:
+            for appliance in room.appliances:
+                if appliance.metering_device is None or appliance.power <= 0:
                     continue
-                for пок in прибор.устройство_учета.показания:
-                    if пок.мощность_вт > прибор.критическая_мощность or (
-                        пок.мощность_вт > прибор.мощность * критический_множитель
-                        and пок.мощность_вт > 500
+                for reading in appliance.metering_device.readings:
+                    if reading.power_w > appliance.critical_power_w or (
+                        reading.power_w > appliance.power * spike_multiplier and reading.power_w > 500
                     ):
-                        отклонение = ((пок.мощность_вт / max(прибор.мощность, 1.0)) - 1.0) * 100.0
-                        уже_есть = any(
-                            a.время == пок.время and a.место == f"линии {комната.название.lower()}"
-                            for a in найденные
-                        )
-                        if not уже_есть:
-                            ан = Аномалия(
-                                тип="Скачок мощности",
-                                величина=round(отклонение, 1),
-                                время=пок.время,
-                                место=f"линии {комната.название.lower()}",
+                        deviation = ((reading.power_w / max(appliance.power, 1.0)) - 1.0) * 100.0
+                        loc = f"линии {room.name.lower()}"
+                        exists = any(a.timestamp == reading.timestamp and a.location == loc for a in found)
+                        if not exists:
+                            anomaly = Anomaly(
+                                anomaly_type="Скачок мощности",
+                                magnitude=round(deviation, 1),
+                                timestamp=reading.timestamp,
+                                location=loc,
                             )
-                            self.хранение.сохранить(ан)
-                            найденные.append(ан)
-        return найденные
+                            self.storage.save(anomaly)
+                            found.append(anomaly)
+        return found
 
-    def проверить_лимиты(self, дом: ДомКвартира) -> list[str]:
-        """Проверка дневного и месячного лимитов (80% и 100%)."""
-        лимит = self.хранение.активный_лимит()
-        тариф = self.хранение.активный_тариф()
-        расход_сегодня = self.рассчитатьРасход(дом)
-        предупреждения: list[str] = []
-        if расход_сегодня > лимит.дневной_лимит_квтч:
-            предупреждения.append("Внимание! Превышен лимит дневного потребления энергии.")
-        оценка_месяца_руб = расход_сегодня * тариф.стоимостьДень
-        if оценка_месяца_руб >= лимит.месячный_лимит_руб:
-            предупреждения.append(
-                f"Внимание! Превышен месячный лимит расходов ({лимит.месячный_лимит_руб:.0f} бел. руб.)."
+    def check_limits(self, home: Home) -> list[str]:
+        """Check daily energy limit and 80%/100% monthly budget thresholds."""
+        limit = self.storage.active_limit()
+        tariff = self.storage.active_tariff()
+        daily_kwh = self.calculate_consumption(home)
+        alerts: list[str] = []
+        if daily_kwh > limit.daily_limit_kwh:
+            alerts.append("Внимание! Превышен лимит дневного потребления энергии.")
+        estimated_cost_byn = daily_kwh * tariff.day_rate
+        if estimated_cost_byn >= limit.monthly_budget_byn:
+            alerts.append(
+                f"Внимание! Превышен месячный лимит расходов ({limit.monthly_budget_byn:.0f} бел. руб.)."
             )
-        elif лимит.уведомлять_при_80 and оценка_месяца_руб >= лимит.месячный_лимит_руб * 0.8:
-            предупреждения.append("Внимание! Достигнуто 80% месячного лимита расходов.")
-        return предупреждения
+        elif limit.notify_at_80 and estimated_cost_byn >= limit.monthly_budget_byn * 0.8:
+            alerts.append("Внимание! Достигнуто 80% месячного лимита расходов.")
+        return alerts
 
 
-class ПодсистемаУведомлений:
-    """<<control>> Подсистема уведомлений (4.1, стр. 13): +отправитьУведомление(): void."""
+class NotificationSubsystem:
+    """<<control>> UML `Подсистема уведомлений` (4.1, page 13): send_notification()."""
 
-    def __init__(self, хранение: ПодсистемаХранения, анализ: ПодсистемаАнализа) -> None:
-        self.хранение = хранение
-        self.анализ = анализ
+    def __init__(self, storage: StorageSubsystem, analysis: AnalysisSubsystem) -> None:
+        self.storage = storage
+        self.analysis = analysis
 
-    def отправитьУведомление(self, текст: Optional[str] = None, тип: str = "warning") -> None:
-        """Отправить и сохранить уведомление пользователю (метод 4.1)."""
-        if текст is None:
-            аномалии = self.анализ.выявитьАномалии()
-            if аномалии:
-                текст = аномалии[-1].описать()
-                тип = "anomaly"
+    def send_notification(self, message: Optional[str] = None, notification_type: str = "warning") -> None:
+        """UML method `+отправитьУведомление(): void`."""
+        if message is None:
+            anomalies = self.analysis.detect_anomalies()
+            if anomalies:
+                message = anomalies[-1].describe()
+                notification_type = "anomaly"
             else:
-                текст = "Внимание! Превышен лимит дневного потребления энергии."
-                тип = "limit"
-        уведомление = Уведомление(текст=текст, тип=тип, дата_отправки=datetime.now(LOCAL_TZ))
-        self.хранение.сохранить(уведомление)
+                message = "Внимание! Превышен лимит дневного потребления энергии."
+                notification_type = "limit"
+        notification = Notification(
+            message=message,
+            notification_type=notification_type,
+            sent_at=datetime.now(LOCAL_TZ),
+        )
+        self.storage.save(notification)
 
 
-class ПодсистемаОтчетности:
-    """<<boundary>> Подсистема отчётности (4.1, стр. 13): +сформироватьОтчет(): Отчет, +построитьГрафик(): Chart."""
+class ReportingSubsystem:
+    """<<boundary>> UML `Подсистема отчётности` (4.1, page 13): generate_report(), build_chart()."""
 
-    def __init__(self, хранение: ПодсистемаХранения, анализ: ПодсистемаАнализа) -> None:
-        self.хранение = хранение
-        self.анализ = анализ
+    def __init__(self, storage: StorageSubsystem, analysis: AnalysisSubsystem) -> None:
+        self.storage = storage
+        self.analysis = analysis
 
-    def построитьГрафик(self, период: str = "week") -> Chart:
-        """Построить график расхода по выбранному периоду: day / week / month (метод 4.1)."""
-        данные = self.хранение._серии_по_периодам.get(период)
-        if данные:
+    def build_chart(self, period: str = "week") -> Chart:
+        """UML method `+построитьГрафик(): Chart`."""
+        data = self.storage._period_series.get(period)
+        if data:
             return Chart(
-                заголовок=данные["заголовок"],
-                подзаголовок=данные["подзаголовок"],
-                период=период,
-                метки=list(данные["метки"]),
-                значения=[float(v) for v in данные["значения"]],
-                шаг_оси_y=float(данные.get("шаг_оси_y", 5.0)),
-                максимум_оси_y=float(данные.get("максимум_оси_y", 25.0)),
+                title=data["title"],
+                subtitle=data["subtitle"],
+                period=period,
+                labels=list(data["labels"]),
+                values=[float(v) for v in data["values"]],
+                y_step=float(data.get("y_step", 5.0)),
+                y_max=float(data.get("y_max", 25.0)),
             )
         return Chart(
-            заголовок="График расхода по дням (кВт·ч)",
-            подзаголовок="Сегодня: 22.03.2027 - Пятница",
-            период=период,
-            метки=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
-            значения=[16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0],
-            шаг_оси_y=5.0,
-            максимум_оси_y=25.0,
+            title="График расхода по дням (кВт·ч)",
+            subtitle="Сегодня: 22.03.2027 - Пятница",
+            period=period,
+            labels=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+            values=[16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0],
+            y_step=5.0,
+            y_max=25.0,
         )
 
-    def сформироватьОтчет(self, период: str = "week", дом: Optional[ДомКвартира] = None) -> Отчет:
-        """Сформировать отчёт с графиком и списком выявленных аномалий (метод 4.1)."""
-        график = self.построитьГрафик(период)
-        расход = self.анализ.рассчитатьРасход(дом=дом, период=период)
-        тариф = self.хранение.активный_тариф()
-        стоимость = round(расход * ((тариф.стоимостьДень + тариф.стоимостьНочь) / 2.0), 2)
-        аномалии = self.анализ.выявитьАномалии(дом=дом)
-        рекомендации: list[str] = []
-        if аномалии:
-            рекомендации.append("Проверьте линию с выявленным скачком мощности.")
-        отчет = Отчет(
-            период=период,
-            дата_формирования=datetime.now(LOCAL_TZ),
-            общий_расход_квтч=расход,
-            общая_стоимость_руб=стоимость,
-            график=график,
-            аномалии=аномалии,
-            рекомендации=рекомендации,
+    def generate_report(self, period: str = "week", home: Optional[Home] = None) -> Report:
+        """UML method `+сформироватьОтчет(): Отчет`."""
+        chart = self.build_chart(period)
+        consumption = self.analysis.calculate_consumption(home=home, period=period)
+        tariff = self.storage.active_tariff()
+        cost = round(consumption * ((tariff.day_rate + tariff.night_rate) / 2.0), 2)
+        anomalies = self.analysis.detect_anomalies(home=home)
+        recommendations: list[str] = []
+        if anomalies:
+            recommendations.append("Проверьте линию с выявленным скачком мощности.")
+        report = Report(
+            period=period,
+            generated_at=datetime.now(LOCAL_TZ),
+            total_consumption_kwh=consumption,
+            total_cost_byn=cost,
+            chart=chart,
+            anomalies=anomalies,
+            recommendations=recommendations,
         )
-        self.хранение.сохранить(отчет)
-        return отчет
+        self.storage.save(report)
+        return report
 
 
-class Шлюз:
-    """Шлюз приёма данных от датчиков по Sequence-диаграмме 3.3 (стр. 12)."""
+class SensorGateway:
+    """Sensor data gateway per Sequence Diagram 3.3 (page 12)."""
 
     def __init__(
         self,
-        сбор: ПодсистемаСбораДанных,
-        анализ: ПодсистемаАнализа,
-        уведомления: ПодсистемаУведомлений,
-        хранение: ПодсистемаХранения,
+        collection: DataCollectionSubsystem,
+        analysis: AnalysisSubsystem,
+        notifications: NotificationSubsystem,
+        storage: StorageSubsystem,
     ) -> None:
-        self.сбор = сбор
-        self.анализ = анализ
-        self.уведомления = уведомления
-        self.хранение = хранение
+        self.collection = collection
+        self.analysis = analysis
+        self.notifications = notifications
+        self.storage = storage
 
-    def передать_показание(self, прибор: Прибор, показание: Показание, дом: ДомКвартира) -> dict[str, Any]:
-        """Асинхронная/синхронная цепочка 1..11 из Sequence-диаграммы 3.3."""
-        if показание.значение < 0 or показание.мощность_вт < 0:
-            self.хранение.сохранить(
-                Событие(тип="ошибка_данных", дата=datetime.now(LOCAL_TZ), описание="Отрицательные значения пакета")
+    def submit_reading(self, appliance: Appliance, reading: Reading, home: Home) -> dict[str, Any]:
+        """Sequence 3.3 steps 1..11: validate -> save -> analyze -> notify or log normal."""
+        if reading.value < 0 or reading.power_w < 0:
+            self.storage.save(
+                Event(
+                    event_type="invalid_reading",
+                    timestamp=datetime.now(LOCAL_TZ),
+                    description="Отрицательные значения пакета",
+                )
             )
-            raise ОшибкаВалидации("Показание должно быть неотрицательным.")
+            raise ValidationError("Показание должно быть неотрицательным.")
 
-        if прибор.устройство_учета is not None:
-            прибор.устройство_учета.показания.append(показание)
-            прибор.устройство_учета.текущая_мощность_вт = показание.мощность_вт
-        self.сбор.сохранитьПоказания([показание])
+        if appliance.metering_device is not None:
+            appliance.metering_device.readings.append(reading)
+            appliance.metering_device.current_power_w = reading.power_w
+        self.collection.save_readings([reading])
 
-        # Шаг 5–7: проверка лимитов и аномалий
-        превышен_крит = показание.мощность_вт > прибор.критическая_мощность
-        предупреждения = self.анализ.проверить_лимиты(дом)
-        if превышен_крит:
-            if прибор.автомат.внешнее_состояние == СостояниеПрибора.ВКЛЮЧЕН:
-                прибор.автомат.событие_аномалии(
-                    превышен_критический_порог=True,
-                    уведомить=lambda: self.уведомления.отправитьУведомление(
-                        f"Критический скачок мощности на «{прибор.название}» ({int(показание.мощность_вт)} Вт). Линия обесточена.",
-                        тип="anomaly",
+        critical_exceeded = reading.power_w > appliance.critical_power_w
+        alerts = self.analysis.check_limits(home)
+        if critical_exceeded:
+            if appliance.state_machine.outer_state == DeviceState.ON:
+                appliance.state_machine.trigger_anomaly(
+                    critical_threshold_exceeded=True,
+                    notify_callback=lambda: self.notifications.send_notification(
+                        f"Критический скачок мощности на «{appliance.name}» ({int(reading.power_w)} Вт). Линия обесточена.",
+                        notification_type="anomaly",
                     ),
                 )
-            ан = Аномалия(
-                тип="Скачок мощности",
-                величина=round(((показание.мощность_вт / max(прибор.мощность, 1.0)) - 1.0) * 100.0, 1),
-                время=показание.время,
-                место=f"линии прибора {прибор.название}",
+            anomaly = Anomaly(
+                anomaly_type="Скачок мощности",
+                magnitude=round(((reading.power_w / max(appliance.power, 1.0)) - 1.0) * 100.0, 1),
+                timestamp=reading.timestamp,
+                location=f"линии прибора {appliance.name}",
             )
-            self.хранение.сохранить(ан)
-            return {"статус": "оповещение_отправлено", "аномалия": ан.описать()}
+            self.storage.save(anomaly)
+            return {"status": "alert_sent", "anomaly": anomaly.describe()}
 
-        if предупреждения:
-            self.уведомления.отправитьУведомление(предупреждения[0], тип="limit")
-            return {"статус": "оповещение_отправлено", "сообщение": предупреждения[0]}
+        if alerts:
+            self.notifications.send_notification(alerts[0], notification_type="limit")
+            return {"status": "alert_sent", "message": alerts[0]}
 
-        # Ветка [Показатели в норме] (шаги 10–11)
-        self.хранение.сохранить(
-            Событие(тип="штатная_работа", дата=datetime.now(LOCAL_TZ), описание=f"Показание прибора «{прибор.название}» обработано")
+        self.storage.save(
+            Event(
+                event_type="normal_operation",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"Показание прибора «{appliance.name}» обработано",
+            )
         )
-        return {"статус": "успешно_обработано"}
+        return {"status": "processed_ok"}
 
 
-class ИнтерфейсПриложения:
-    """<<boundary>> Интерфейс приложения (4.1, стр. 13): +показатьПотребление(): void, +настроитьЛимит(): void."""
+class ApplicationInterface:
+    """<<boundary>> UML `Интерфейс приложения` (4.1, page 13): show_consumption(), configure_limit()."""
 
     def __init__(
         self,
-        хранение: ПодсистемаХранения,
-        сбор: ПодсистемаСбораДанных,
-        анализ: ПодсистемаАнализа,
-        уведомления: ПодсистемаУведомлений,
-        отчетность: ПодсистемаОтчетности,
-        доступ: ПодсистемаУправленияДоступом,
+        storage: StorageSubsystem,
+        collection: DataCollectionSubsystem,
+        analysis: AnalysisSubsystem,
+        notifications: NotificationSubsystem,
+        reporting: ReportingSubsystem,
+        access_control: AccessControlSubsystem,
     ) -> None:
-        self.хранение = хранение
-        self.сбор = сбор
-        self.анализ = анализ
-        self.уведомления = уведомления
-        self.отчетность = отчетность
-        self.доступ = доступ
-        self.шлюз = Шлюз(сбор, анализ, уведомления, хранение)
-        self._автоматы_окон: dict[str, АвтоматПереходовОкон] = {}
+        self.storage = storage
+        self.collection = collection
+        self.analysis = analysis
+        self.notifications = notifications
+        self.reporting = reporting
+        self.access_control = access_control
+        self.gateway = SensorGateway(collection, analysis, notifications, storage)
+        self._window_fsms: dict[str, WindowTransitionFSM] = {}
 
-    def автомат_окон(self, токен: str) -> АвтоматПереходовОкон:
-        if токен not in self._автоматы_окон:
-            self._автоматы_окон[токен] = АвтоматПереходовОкон(текущее_окно=СостояниеОкна.ГЛАВНОЕ_ОКНО)
-        return self._автоматы_окон[токен]
+    def window_fsm(self, token: str) -> WindowTransitionFSM:
+        if token not in self._window_fsms:
+            self._window_fsms[token] = WindowTransitionFSM(current_window=WindowState.MAIN_WINDOW)
+        return self._window_fsms[token]
 
-    def показатьПотребление(self, пользователь: Optional[Пользователь] = None) -> dict[str, Any]:
-        """Показать текущее потребление и предупреждения для Главного окна (метод 4.1)."""
-        if пользователь is not None:
-            self.доступ.требовать_права(пользователь, "просмотр_потребления")
-            дом = пользователь.дом
+    def show_consumption(self, user: Optional[User] = None) -> dict[str, Any]:
+        """UML method `+показатьПотребление(): void`."""
+        if user is not None:
+            self.access_control.require_permission(user, "view_consumption")
+            home = user.home
         else:
-            дом = self.хранение.дома[0] if self.хранение.дома else None
-        if дом is None:
-            return {"текущая_мощность_квт": 0.0, "расход_за_сегодня_квтч": 0.0, "предупреждения": []}
+            home = self.storage.homes[0] if self.storage.homes else None
+        if home is None:
+            return {"current_power_kw": 0.0, "daily_consumption_kwh": 0.0, "alerts": []}
 
-        мощность = дом.текущая_мощность_квт()
-        расход = self.анализ.рассчитатьРасход(дом)
-        предупреждения = self.анализ.проверить_лимиты(дом)
         return {
-            "текущая_мощность_квт": мощность,
-            "расход_за_сегодня_квтч": расход,
-            "предупреждения": предупреждения,
+            "current_power_kw": home.current_power_kw(),
+            "daily_consumption_kwh": self.analysis.calculate_consumption(home),
+            "alerts": self.analysis.check_limits(home),
         }
 
-    def настроитьЛимит(
+    def configure_limit(
         self,
-        пользователь: Optional[Пользователь] = None,
-        месячный_лимит_руб: Optional[float] = None,
-        стоимость_день: Optional[float] = None,
-        стоимость_ночь: Optional[float] = None,
-        уведомлять_при_80: Optional[bool] = None,
+        user: Optional[User] = None,
+        monthly_budget_byn: Optional[float] = None,
+        day_rate: Optional[float] = None,
+        night_rate: Optional[float] = None,
+        notify_at_80: Optional[bool] = None,
     ) -> dict[str, Any]:
-        """Настроить месячный лимит, тарифные зоны и уведомление при 80% (метод 4.1, макет 5.3.5)."""
-        if пользователь is not None:
-            self.доступ.требовать_права(пользователь, "настройка_тарифов_и_лимитов")
+        """UML method `+настроитьЛимит(): void` (Mockup 5.3.5, page 20)."""
+        if user is not None:
+            self.access_control.require_permission(user, "configure_tariffs_and_limits")
 
-        лимит = self.хранение.активный_лимит()
-        тариф = self.хранение.активный_тариф()
+        limit = self.storage.active_limit()
+        tariff = self.storage.active_tariff()
 
-        if месячный_лимит_руб is not None:
-            if месячный_лимит_руб <= 0:
-                raise ОшибкаВалидации("Месячный лимит расходов должен быть больше 0.")
-            лимит.месячный_лимит_руб = float(месячный_лимит_руб)
+        if monthly_budget_byn is not None:
+            if monthly_budget_byn <= 0:
+                raise ValidationError("Месячный лимит расходов должен быть больше 0.")
+            limit.monthly_budget_byn = float(monthly_budget_byn)
 
-        if уведомлять_при_80 is not None:
-            лимит.уведомлять_при_80 = bool(уведомлять_при_80)
+        if notify_at_80 is not None:
+            limit.notify_at_80 = bool(notify_at_80)
 
-        новый_день = тариф.стоимостьДень if стоимость_день is None else float(стоимость_день)
-        новая_ночь = тариф.стоимостьНочь if стоимость_ночь is None else float(стоимость_ночь)
-        if новый_день < 0 or новая_ночь < 0:
-            raise ОшибкаВалидации("Стоимость тарифа не может быть отрицательной.")
-        if новый_день != тариф.стоимостьДень or новая_ночь != тариф.стоимостьНочь:
-            новый_тариф = Тариф(
-                стоимостьДень=новый_день,
-                стоимостьНочь=новая_ночь,
-                начало_дня=тариф.начало_дня,
-                начало_ночи=тариф.начало_ночи,
+        new_day = tariff.day_rate if day_rate is None else float(day_rate)
+        new_night = tariff.night_rate if night_rate is None else float(night_rate)
+        if new_day < 0 or new_night < 0:
+            raise ValidationError("Стоимость тарифа не может быть отрицательной.")
+        if new_day != tariff.day_rate or new_night != tariff.night_rate:
+            new_tariff = Tariff(
+                day_rate=new_day,
+                night_rate=new_night,
+                day_start=tariff.day_start,
+                night_start=tariff.night_start,
             )
-            self.хранение.сохранить(новый_тариф)
-            тариф = новый_тариф
+            self.storage.save(new_tariff)
+            tariff = new_tariff
 
-        self.хранение.сохранить(
-            Событие(
-                тип="изменение_настроек",
-                дата=datetime.now(LOCAL_TZ),
-                описание=f"Лимит: {лимит.месячный_лимит_руб} руб., тарифы: {тариф.стоимостьДень}/{тариф.стоимостьНочь}",
-                пользователь=пользователь.логин if пользователь else None,
+        self.storage.save(
+            Event(
+                event_type="settings_changed",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"Лимит: {limit.monthly_budget_byn} руб., тарифы: {tariff.day_rate}/{tariff.night_rate}",
+                user_login=user.login if user else None,
             )
         )
         return {
-            "месячный_лимит_руб": лимит.месячный_лимит_руб,
-            "стоимость_день": тариф.стоимостьДень,
-            "стоимость_ночь": тариф.стоимостьНочь,
-            "уведомлять_при_80": лимит.уведомлять_при_80,
+            "monthly_budget_byn": limit.monthly_budget_byn,
+            "day_rate": tariff.day_rate,
+            "night_rate": tariff.night_rate,
+            "notify_at_80": limit.notify_at_80,
         }
 
-    def добавить_помещение(self, пользователь: Пользователь, название: str) -> Комната:
-        self.доступ.требовать_права(пользователь, "регистрация_помещений")
-        чистое = (название or "").strip()
-        if not чистое or len(чистое) > 80:
-            raise ОшибкаВалидации("Введите название помещения (от 1 до 80 символов).")
-        дом = пользователь.дом
-        if дом is None:
-            raise ОшибкаВалидации("У пользователя не привязан дом.")
-        if any(к.название.lower() == чистое.lower() for к in дом.комнаты):
-            raise ОшибкаВалидации("Помещение с таким названием уже существует.")
-        комната = Комната(название=чистое, id=self.хранение.следующий_id_комнаты())
-        дом.добавить_комнату(комната)
-        self.хранение.сохранить(
-            Событие(
-                тип="добавление_помещения",
-                дата=datetime.now(LOCAL_TZ),
-                описание=f"Добавлено помещение: {чистое}",
-                пользователь=пользователь.логин,
+    def add_room(self, user: User, name: str) -> Room:
+        self.access_control.require_permission(user, "register_rooms")
+        clean_name = (name or "").strip()
+        if not clean_name or len(clean_name) > 80:
+            raise ValidationError("Введите название помещения (от 1 до 80 символов).")
+        home = user.home
+        if home is None:
+            raise ValidationError("У пользователя не привязан дом.")
+        if any(r.name.lower() == clean_name.lower() for r in home.rooms):
+            raise ValidationError("Помещение с таким названием уже существует.")
+        room = Room(name=clean_name, id=self.storage.next_room_id())
+        home.add_room(room)
+        self.storage.save(
+            Event(
+                event_type="room_added",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"Добавлено помещение: {clean_name}",
+                user_login=user.login,
             )
         )
-        return комната
+        return room
 
-    def добавить_устройство(
+    def add_device(
         self,
-        пользователь: Пользователь,
-        id_комнаты: int,
-        название: str,
-        тип_устройства: str,
-        серийный_номер: str,
-        мощность_вт: float,
-    ) -> Прибор:
-        self.доступ.требовать_права(пользователь, "регистрация_устройств")
-        дом = пользователь.дом
-        if дом is None:
-            raise ОшибкаВалидации("У пользователя не привязан дом.")
-        комната = next((к for к in дом.комнаты if к.id == id_комнаты), None)
-        if комната is None:
-            raise ОшибкаВалидации("Выберите существующее помещение.")
-        чистое_имя = (название or "").strip()
-        чистый_серийный = (серийный_номер or "").strip()
-        if not чистое_имя or len(чистое_имя) > 80:
-            raise ОшибкаВалидации("Укажите название устройства/прибора (до 80 символов).")
-        if not чистый_серийный or len(чистый_серийный) > 60:
-            raise ОшибкаВалидации("Укажите серийный номер устройства учёта.")
-        if мощность_вт < 0 or мощность_вт > 50000:
-            raise ОшибкаВалидации("Мощность должна быть в диапазоне от 0 до 50000 Вт.")
+        user: User,
+        room_id: int,
+        name: str,
+        device_type: str,
+        serial_number: str,
+        power_w: float,
+    ) -> Appliance:
+        self.access_control.require_permission(user, "register_devices")
+        home = user.home
+        if home is None:
+            raise ValidationError("У пользователя не привязан дом.")
+        room = next((r for r in home.rooms if r.id == room_id), None)
+        if room is None:
+            raise ValidationError("Выберите существующее помещение.")
+        clean_name = (name or "").strip()
+        clean_serial = (serial_number or "").strip()
+        if not clean_name or len(clean_name) > 80:
+            raise ValidationError("Укажите название устройства/прибора (до 80 символов).")
+        if not clean_serial or len(clean_serial) > 60:
+            raise ValidationError("Укажите серийный номер устройства учёта.")
+        if power_w < 0 or power_w > 50000:
+            raise ValidationError("Мощность должна быть в диапазоне от 0 до 50000 Вт.")
 
-        устройство = УстройствоУчета(
-            тип=(тип_устройства or "Умная розетка").strip(),
-            серийныйНомер=чистый_серийный,
-            тариф=self.хранение.активный_тариф(),
-            текущая_мощность_вт=float(мощность_вт),
-            активно=True,
+        device = MeteringDevice(
+            device_type=(device_type or "Умная розетка").strip(),
+            serial_number=clean_serial,
+            tariff=self.storage.active_tariff(),
+            current_power_w=float(power_w),
+            active=True,
         )
-        прибор = Прибор(
-            название=чистое_имя,
-            мощность=float(мощность_вт),
-            устройство_учета=устройство,
-            критическая_мощность=max(float(мощность_вт) * 2.5, 2500.0),
-            id=self.хранение.следующий_id_прибора(),
+        appliance = Appliance(
+            name=clean_name,
+            power=float(power_w),
+            metering_device=device,
+            critical_power_w=max(float(power_w) * 2.5, 2500.0),
+            id=self.storage.next_appliance_id(),
         )
-        прибор.автомат.включить_прибор()
-        if мощность_вт > 0:
-            прибор.автомат.сигнал_включения()
-        комната.добавить_прибор(прибор)
-        self.хранение.сохранить(
-            Событие(
-                тип="регистрация_устройства",
-                дата=datetime.now(LOCAL_TZ),
-                описание=f"Зарегистрировано устройство «{чистое_имя}» ({чистый_серийный}) в «{комната.название}»",
-                пользователь=пользователь.логин,
+        appliance.state_machine.turn_on()
+        if power_w > 0:
+            appliance.state_machine.start_operation()
+        room.add_appliance(appliance)
+        self.storage.save(
+            Event(
+                event_type="device_registered",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"Зарегистрировано устройство «{clean_name}» ({clean_serial}) в «{room.name}»",
+                user_login=user.login,
             )
         )
-        return прибор
+        return appliance
 
-    def изменить_состояние_прибора(self, пользователь: Пользователь, id_прибора: int, действие: str) -> Прибор:
-        self.доступ.требовать_права(пользователь, "управление_устройствами")
-        дом = пользователь.дом
-        if дом is None:
-            raise ОшибкаВалидации("Дом не найден.")
-        целевой_прибор: Optional[Прибор] = None
-        целевая_комната: Optional[Комната] = None
-        for комната in дом.комнаты:
-            for прибор in комната.приборы:
-                if прибор.id == id_прибора:
-                    целевой_прибор = прибор
-                    целевая_комната = комната
+    def change_appliance_state(self, user: User, appliance_id: int, action: str) -> Appliance:
+        self.access_control.require_permission(user, "manage_devices")
+        home = user.home
+        if home is None:
+            raise ValidationError("Дом не найден.")
+        target_appliance: Optional[Appliance] = None
+        target_room: Optional[Room] = None
+        for room in home.rooms:
+            for appliance in room.appliances:
+                if appliance.id == appliance_id:
+                    target_appliance = appliance
+                    target_room = room
                     break
-        if целевой_прибор is None or целевая_комната is None:
-            raise ОшибкаВалидации("Устройство не найдено.")
+        if target_appliance is None or target_room is None:
+            raise ValidationError("Устройство не найдено.")
 
-        целевой_прибор.отображаемый_статус = None
+        target_appliance.display_status = None
         try:
-            if действие == "enable":
-                целевой_прибор.автомат.включить_прибор()
-                if целевой_прибор.устройство_учета:
-                    целевой_прибор.устройство_учета.активно = True
-            elif действие == "disable":
-                целевой_прибор.автомат.выключить_прибор()
-                if целевой_прибор.устройство_учета:
-                    целевой_прибор.устройство_учета.активно = False
-            elif действие == "start":
-                целевой_прибор.автомат.сигнал_включения()
-            elif действие == "flexible":
-                целевой_прибор.автомат.перейти_на_льготный_тариф()
-            elif действие == "finish_flexible":
-                целевой_прибор.автомат.завершить_цикл_гибкой_нагрузки()
-            elif действие == "finish":
-                целевой_прибор.автомат.штатное_завершение_работы()
-            elif действие == "anomaly":
-                целевой_прибор.автомат.событие_аномалии(
-                    превышен_критический_порог=True,
-                    уведомить=lambda: self.уведомления.отправитьУведомление(
-                        f"Аварийное обесточивание прибора «{целевой_прибор.название}» ({целевая_комната.название}).",
-                        тип="anomaly",
+            if action == "enable":
+                target_appliance.state_machine.turn_on()
+                if target_appliance.metering_device:
+                    target_appliance.metering_device.active = True
+            elif action == "disable":
+                target_appliance.state_machine.turn_off()
+                if target_appliance.metering_device:
+                    target_appliance.metering_device.active = False
+            elif action == "start":
+                target_appliance.state_machine.start_operation()
+            elif action == "flexible":
+                target_appliance.state_machine.switch_to_off_peak()
+            elif action == "finish_flexible":
+                target_appliance.state_machine.finish_flexible_cycle()
+            elif action == "finish":
+                target_appliance.state_machine.finish_normal_operation()
+            elif action == "anomaly":
+                target_appliance.state_machine.trigger_anomaly(
+                    critical_threshold_exceeded=True,
+                    notify_callback=lambda: self.notifications.send_notification(
+                        f"Аварийное обесточивание прибора «{target_appliance.name}» ({target_room.name}).",
+                        notification_type="anomaly",
                     ),
                 )
-                ан = Аномалия(
-                    тип="Скачок мощности",
-                    величина=45.0,
-                    время=datetime.now(LOCAL_TZ),
-                    место=f"линии {целевая_комната.название.lower()}",
+                anomaly = Anomaly(
+                    anomaly_type="Скачок мощности",
+                    magnitude=45.0,
+                    timestamp=datetime.now(LOCAL_TZ),
+                    location=f"линии {target_room.name.lower()}",
                 )
-                self.хранение.сохранить(ан)
-            elif действие == "reset":
-                целевой_прибор.автомат.устранение_аварии()
-            elif действие == "retire":
-                целевой_прибор.автомат.списать_устройство()
+                self.storage.save(anomaly)
+            elif action == "reset":
+                target_appliance.state_machine.clear_fault()
+            elif action == "retire":
+                target_appliance.state_machine.retire()
             else:
-                raise ОшибкаВалидации(f"Неизвестное действие: {действие}")
+                raise ValidationError(f"Неизвестное действие: {action}")
         except ValueError as err:
-            raise ОшибкаВалидации(str(err)) from err
+            raise ValidationError(str(err)) from err
 
-        self.хранение.сохранить(
-            Событие(
-                тип="изменение_состояния_прибора",
-                дата=datetime.now(LOCAL_TZ),
-                описание=f"{целевой_прибор.название}: {целевой_прибор.автомат.текущее_состояние.value}",
-                пользователь=пользователь.логин,
+        self.storage.save(
+            Event(
+                event_type="appliance_state_changed",
+                timestamp=datetime.now(LOCAL_TZ),
+                description=f"{target_appliance.name}: {target_appliance.state_machine.current_state.value}",
+                user_login=user.login,
             )
         )
-        return целевой_прибор
+        return target_appliance

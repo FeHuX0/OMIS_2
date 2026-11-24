@@ -1,4 +1,4 @@
-/* Клиентская логика 5 окон Energy Home — 1:1 с автоматом переходов 5.2 и макетами 5.3 */
+/* Client-side logic for the 5 Energy Home screens (FSM 5.2 & Mockups 5.3) */
 
 let sessionToken = null;
 let appState = null;
@@ -7,11 +7,11 @@ const collapsedRooms = new Map();
 let modalSubmitHandler = null;
 
 const SCREEN_MAP = {
-  "ОкноАвторизации": "screen-login",
-  "ГлавноеОкно": "screen-home",
-  "ОкноУстройств": "screen-devices",
-  "ОкноОтчетов": "screen-reports",
-  "ОкноНастроек": "screen-settings",
+  auth: "screen-login",
+  main: "screen-home",
+  devices: "screen-devices",
+  reports: "screen-reports",
+  settings: "screen-settings",
 };
 
 async function apiRequest(method, url, payload) {
@@ -47,43 +47,43 @@ function formatNumber(value, decimals) {
 
 function renderAll() {
   if (!appState) {
-    showScreen("ОкноАвторизации");
+    showScreen("auth");
     return;
   }
-  showScreen(appState.текущее_окно || "ГлавноеОкно");
+  showScreen(appState.current_window || "main");
 
-  const user = appState.пользователь;
-  const home = appState.главное;
+  const user = appState.user;
+  const main = appState.main;
 
-  // 2: Главное окно
-  document.getElementById("home-power").textContent = `${formatNumber(home.текущая_мощность_квт, 1)} кВт`;
-  document.getElementById("home-daily").textContent = `${formatNumber(home.расход_за_сегодня_квтч, 1)} кВт/ч`;
+  // Screen 2: Main window
+  document.getElementById("home-power").textContent = `${formatNumber(main.current_power_kw, 1)} кВт`;
+  document.getElementById("home-daily").textContent = `${formatNumber(main.daily_consumption_kwh, 1)} кВт/ч`;
   const alertBox = document.getElementById("home-alert-box");
-  if (home.предупреждения && home.предупреждения.length > 0) {
-    alertBox.textContent = home.предупреждения[0];
+  if (main.alerts && main.alerts.length > 0) {
+    alertBox.textContent = main.alerts[0];
   } else {
     alertBox.textContent = "Потребление энергии в пределах установленного лимита.";
   }
-  document.getElementById("home-profile").textContent = `Профиль: ${user.роль_подпись}`;
+  document.getElementById("home-profile").textContent = `Профиль: ${user.role_label}`;
   document.getElementById("home-notice").textContent = "";
 
-  // 3: Окно устройств
-  renderRoomsTree(appState.помещения || [], user.владелец);
+  // Screen 3: Devices window
+  renderRoomsTree(appState.rooms || [], user.is_owner);
   const addDevBtn = document.getElementById("btn-add-device");
   const addRoomBtn = document.getElementById("btn-add-room");
-  addDevBtn.disabled = !user.владелец;
-  addRoomBtn.disabled = !user.владелец;
+  addDevBtn.disabled = !user.is_owner;
+  addRoomBtn.disabled = !user.is_owner;
 
-  // 4: Окно отчётов
-  renderReport(appState.отчет);
+  // Screen 4: Reports window
+  renderReport(appState.report);
 
-  // 5: Окно настроек (загружается при входе в окно настроек или обновлении состояния)
-  const settings = appState.настройки;
-  if (appState.текущее_окно !== "ОкноНастроек" || document.activeElement.tagName !== "INPUT") {
-    document.getElementById("set-monthly-limit").value = String(Math.round(settings.месячный_лимит_руб));
-    document.getElementById("set-day-rate").value = formatNumber(settings.стоимость_день, 2);
-    document.getElementById("set-night-rate").value = formatNumber(settings.стоимость_ночь, 2);
-    document.getElementById("set-notify-80").checked = Boolean(settings.уведомлять_при_80);
+  // Screen 5: Settings window
+  const settings = appState.settings;
+  if (appState.current_window !== "settings" || document.activeElement.tagName !== "INPUT") {
+    document.getElementById("set-monthly-limit").value = String(Math.round(settings.monthly_budget_byn));
+    document.getElementById("set-day-rate").value = formatNumber(settings.day_rate, 2);
+    document.getElementById("set-night-rate").value = formatNumber(settings.night_rate, 2);
+    document.getElementById("set-notify-80").checked = Boolean(settings.notify_at_80);
   }
 }
 
@@ -93,7 +93,7 @@ function renderRoomsTree(rooms, isOwner) {
 
   rooms.forEach((room) => {
     if (!collapsedRooms.has(room.id)) {
-      collapsedRooms.set(room.id, Boolean(room.свернута_по_умолчанию));
+      collapsedRooms.set(room.id, Boolean(room.collapsed_by_default));
     }
     const isCollapsed = collapsedRooms.get(room.id);
 
@@ -113,13 +113,13 @@ function renderRoomsTree(rooms, isOwner) {
     toggleBox.textContent = isCollapsed ? "+" : "−";
 
     const titleSpan = document.createElement("span");
-    titleSpan.textContent = room.название;
+    titleSpan.textContent = room.name;
 
     headerBtn.appendChild(toggleBox);
     headerBtn.appendChild(titleSpan);
     headerBtn.addEventListener("click", () => {
       collapsedRooms.set(room.id, !collapsedRooms.get(room.id));
-      renderRoomsTree(appState.помещения || [], appState.пользователь.владелец);
+      renderRoomsTree(appState.rooms || [], appState.user.is_owner);
     });
     node.appendChild(headerBtn);
 
@@ -127,18 +127,18 @@ function renderRoomsTree(rooms, isOwner) {
       const list = document.createElement("ul");
       list.className = "room-devices-list";
 
-      if (!room.приборы || room.приборы.length === 0) {
+      if (!room.appliances || room.appliances.length === 0) {
         const emptyLi = document.createElement("li");
         emptyLi.className = "device-empty-note";
         emptyLi.textContent = "• Нет подключённых устройств";
         list.appendChild(emptyLi);
       } else {
-        room.приборы.forEach((dev) => {
+        room.appliances.forEach((dev) => {
           const li = document.createElement("li");
           const itemBtn = document.createElement("button");
           itemBtn.type = "button";
           itemBtn.className = "device-item-btn";
-          itemBtn.textContent = `• ${dev.строка}`;
+          itemBtn.textContent = `• ${dev.tree_label}`;
           itemBtn.addEventListener("click", () => openDeviceControlModal(room, dev, isOwner));
           li.appendChild(itemBtn);
           list.appendChild(li);
@@ -154,24 +154,24 @@ function renderRoomsTree(rooms, isOwner) {
 function renderReport(report) {
   if (!report) return;
   document.querySelectorAll(".period-check").forEach((cb) => {
-    cb.checked = cb.dataset.period === report.период;
+    cb.checked = cb.dataset.period === report.period;
   });
 
-  const chart = report.график;
-  document.getElementById("report-chart-title").textContent = chart.заголовок;
-  document.getElementById("report-chart-subtitle").textContent = chart.подзаголовок;
+  const chart = report.chart;
+  document.getElementById("report-chart-title").textContent = chart.title;
+  document.getElementById("report-chart-subtitle").textContent = chart.subtitle;
   drawReportChart(chart);
 
   const anomContainer = document.getElementById("report-anomalies-list");
   anomContainer.textContent = "";
-  if (!report.аномалии || report.аномалии.length === 0) {
+  if (!report.anomalies || report.anomalies.length === 0) {
     const p = document.createElement("p");
     p.textContent = "Аномалии не выявлены";
     anomContainer.appendChild(p);
   } else {
-    report.аномалии.forEach((a) => {
+    report.anomalies.forEach((a) => {
       const p = document.createElement("p");
-      p.textContent = a.описание;
+      p.textContent = a.description;
       anomContainer.appendChild(p);
     });
   }
@@ -193,8 +193,8 @@ function drawReportChart(chart) {
   const x0 = padL;
   const y0 = H - padB;
 
-  const maxY = Math.max(chart.максимум_оси_y || 25, ...chart.значения, 1);
-  const stepY = chart.шаг_оси_y || 5;
+  const maxY = Math.max(chart.y_max || 25, ...chart.values, 1);
+  const stepY = chart.y_step || 5;
 
   const addEl = (tag, attrs, text) => {
     const el = document.createElementNS(svgNs, tag);
@@ -204,21 +204,21 @@ function drawReportChart(chart) {
     return el;
   };
 
-  // Ось Y со стрелкой вверх
+  // Y axis with upward arrow
   addEl("line", { x1: x0, y1: y0, x2: x0, y2: padT - 4, stroke: "#111111", "stroke-width": 1.3 });
   addEl("polygon", {
     points: `${x0},${padT - 8} ${x0 - 3.5},${padT - 1} ${x0 + 3.5},${padT - 1}`,
     fill: "#111111",
   });
 
-  // Ось X со стрелкой вправо
+  // X axis with rightward arrow
   addEl("line", { x1: x0, y1: y0, x2: W - padR + 8, y2: y0, stroke: "#111111", "stroke-width": 1.3 });
   addEl("polygon", {
     points: `${W - padR + 12},${y0} ${W - padR + 5},${y0 - 3.5} ${W - padR + 5},${y0 + 3.5}`,
     fill: "#111111",
   });
 
-  // Подписи по оси Y (0, 5, 10, 15, 20 ...)
+  // Y axis ticks
   for (let val = 0; val < maxY; val += stepY) {
     const y = y0 - (val / maxY) * plotH;
     addEl(
@@ -235,13 +235,13 @@ function drawReportChart(chart) {
     );
   }
 
-  // Столбцы (плоский серый #b3b3b3 + белые цифры внутри внизу, как на стр. 19)
-  const count = chart.метки.length || 1;
+  // Flat gray bars with white values near the bottom inside each bar
+  const count = chart.labels.length || 1;
   const slotW = plotW / count;
   const barW = Math.min(30, Math.max(14, slotW * 0.72));
 
-  chart.метки.forEach((label, idx) => {
-    const val = Number(chart.значения[idx] || 0);
+  chart.labels.forEach((label, idx) => {
+    const val = Number(chart.values[idx] || 0);
     const barH = Math.max(0, (val / maxY) * plotH);
     const bx = x0 + idx * slotW + (slotW - barW) / 2 + 2;
     const by = y0 - barH;
@@ -295,7 +295,7 @@ async function navigateTo(targetScreen) {
     });
     renderAll();
   } catch (err) {
-    if (homeNotice && appState && appState.текущее_окно === "ГлавноеОкно") {
+    if (homeNotice && appState && appState.current_window === "main") {
       homeNotice.textContent = err.message;
     }
   }
@@ -308,7 +308,7 @@ async function refreshState() {
 }
 
 // ---------------------------------------------------------------------------
-// Модальные формы (регистрация, добавление комнаты/устройства, управление 5.1)
+// Monochrome modals (registration, add room/device, appliance FSM 5.1)
 // ---------------------------------------------------------------------------
 
 function openWireModal({ title, submitLabel, hideSubmit, buildFields, onSubmit }) {
@@ -371,8 +371,8 @@ function openRegisterModal() {
       roleSel.id = "reg-role";
       roleSel.className = "wire-select";
       [
-        ["ВЛАДЕЛЕЦ", "Владелец дома"],
-        ["ЧЛЕН_СЕМЬИ", "Член семьи"],
+        ["OWNER", "Владелец дома"],
+        ["FAMILY_MEMBER", "Член семьи"],
       ].forEach(([val, text]) => {
         const opt = document.createElement("option");
         opt.value = val;
@@ -425,7 +425,7 @@ function openAddRoomModal() {
 }
 
 function openAddDeviceModal() {
-  const rooms = (appState && appState.помещения) || [];
+  const rooms = (appState && appState.rooms) || [];
   openWireModal({
     title: "Новое устройство",
     submitLabel: "Добавить устройство",
@@ -436,7 +436,7 @@ function openAddDeviceModal() {
       rooms.forEach((r) => {
         const opt = document.createElement("option");
         opt.value = String(r.id);
-        opt.textContent = r.название;
+        opt.textContent = r.name;
         roomSel.appendChild(opt);
       });
 
@@ -493,26 +493,26 @@ function openAddDeviceModal() {
 
 function openDeviceControlModal(room, dev, isOwner) {
   openWireModal({
-    title: dev.название,
+    title: dev.name,
     submitLabel: "Применить состояние",
-    hideSubmit: !isOwner || !dev.доступные_действия || dev.доступные_действия.length === 0,
+    hideSubmit: !isOwner || !dev.available_actions || dev.available_actions.length === 0,
     buildFields: (box) => {
       const info = document.createElement("p");
       info.className = "wire-modal-info";
-      const sub = dev.внутреннее_состояние ? ` / ${dev.внутреннее_состояние}` : "";
+      const sub = dev.inner_state ? ` / ${dev.inner_state}` : "";
       info.textContent =
-        `Помещение: ${room.название}\n` +
-        `Устройство учёта: ${dev.тип_устройства} (${dev.серийный_номер})\n` +
-        `Состояние (5.1): ${dev.внешнее_состояние}${sub}\n` +
-        `Текущая мощность: ${Math.round(dev.текущая_мощность_вт)} Вт`;
+        `Помещение: ${room.name}\n` +
+        `Устройство учёта: ${dev.device_type} (${dev.serial_number})\n` +
+        `Состояние (5.1): ${dev.outer_state}${sub}\n` +
+        `Текущая мощность: ${Math.round(dev.current_power_w)} Вт`;
       info.style.whiteSpace = "pre-line";
       box.appendChild(info);
 
-      if (isOwner && dev.доступные_действия && dev.доступные_действия.length > 0) {
+      if (isOwner && dev.available_actions && dev.available_actions.length > 0) {
         const actSel = document.createElement("select");
         actSel.id = "dev-fsm-action";
         actSel.className = "wire-select";
-        dev.доступные_действия.forEach((a) => {
+        dev.available_actions.forEach((a) => {
           const opt = document.createElement("option");
           opt.value = a.id;
           opt.textContent = a.label;
@@ -535,7 +535,7 @@ function openDeviceControlModal(room, dev, isOwner) {
 }
 
 // ---------------------------------------------------------------------------
-// Привязка обработчиков событий
+// Event listeners
 // ---------------------------------------------------------------------------
 
 document.getElementById("login-form").addEventListener("submit", async (e) => {
@@ -558,9 +558,9 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 
 document.getElementById("btn-open-register").addEventListener("click", openRegisterModal);
 
-document.getElementById("btn-go-devices").addEventListener("click", () => navigateTo("ОкноУстройств"));
-document.getElementById("btn-go-reports").addEventListener("click", () => navigateTo("ОкноОтчетов"));
-document.getElementById("btn-go-settings").addEventListener("click", () => navigateTo("ОкноНастроек"));
+document.getElementById("btn-go-devices").addEventListener("click", () => navigateTo("devices"));
+document.getElementById("btn-go-reports").addEventListener("click", () => navigateTo("reports"));
+document.getElementById("btn-go-settings").addEventListener("click", () => navigateTo("settings"));
 
 document.getElementById("btn-logout").addEventListener("click", async () => {
   try {
@@ -570,14 +570,14 @@ document.getElementById("btn-logout").addEventListener("click", async () => {
   appState = null;
   collapsedRooms.clear();
   document.getElementById("login-error").textContent = "";
-  showScreen("ОкноАвторизации");
+  showScreen("auth");
 });
 
-document.getElementById("btn-devices-back").addEventListener("click", () => navigateTo("ГлавноеОкно"));
+document.getElementById("btn-devices-back").addEventListener("click", () => navigateTo("main"));
 document.getElementById("btn-add-room").addEventListener("click", openAddRoomModal);
 document.getElementById("btn-add-device").addEventListener("click", openAddDeviceModal);
 
-document.getElementById("btn-reports-back").addEventListener("click", () => navigateTo("ГлавноеОкно"));
+document.getElementById("btn-reports-back").addEventListener("click", () => navigateTo("main"));
 document.querySelectorAll(".period-check").forEach((cb) => {
   cb.addEventListener("change", async () => {
     currentPeriod = cb.dataset.period || "week";
@@ -604,9 +604,8 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
 });
 
 document.getElementById("btn-cancel-settings").addEventListener("click", async () => {
-  // Сбросить несохранённые изменения и вернуться в ГлавноеОкно (диаграмма 5.2)
   document.getElementById("settings-error").textContent = "";
-  await navigateTo("ГлавноеОкно");
+  await navigateTo("main");
 });
 
 document.getElementById("wire-modal-cancel").addEventListener("click", closeWireModal);

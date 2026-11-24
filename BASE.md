@@ -1,6 +1,6 @@
 # Базовая диаграмма классов (раздел 4.1, стр. 13 `1laba_full_fc613401.pdf`)
 
-Документ описывает **1:1 соответствие** между базовой диаграммой классов из отчёта (стр. 13) и реализацией на Python: где объявлен каждый класс, какие у него атрибуты, методы, связи и как они используются при работе приложения.
+Документ описывает **1:1 соответствие** между русскоязычными сущностями базовой диаграммы классов из отчёта (стр. 13) и их **англоязычной реализацией в Python** (по PEP 8): какой класс за что отвечает, где он находится в коде, какие у него атрибуты, методы и связи.
 
 ---
 
@@ -8,39 +8,39 @@
 
 ### Пакет «Ядро системы (Домен)»
 
-| Элемент на диаграмме 4.1 | Тип / Стереотип | Класс в Python | Файл |
+| Класс на диаграмме 4.1 (PDF) | Тип / Стереотип | Класс в Python | Файл |
 |---|---|---|---|
-| `Пользователь` | Class | `Пользователь` | `energy_home/domain.py` |
-| `Роль` | Enum (`E`) | `Роль` | `energy_home/domain.py` |
-| `Событие` | Class | `Событие` | `energy_home/domain.py` |
-| `Дом / Квартира` | Class | `ДомКвартира` | `energy_home/domain.py` |
-| `Комната` | Class | `Комната` | `energy_home/domain.py` |
-| `Прибор` | Class | `Прибор` | `energy_home/domain.py` |
-| `Устройство учета` | Class | `УстройствоУчета` | `energy_home/domain.py` |
-| `Показание` | Class | `Показание` | `energy_home/domain.py` |
-| `Тариф` | Class | `Тариф` | `energy_home/domain.py` |
+| `Пользователь` | Class | `User` | `energy_home/domain.py` |
+| `Роль` (`ВЛАДЕЛЕЦ`, `ЧЛЕН_СЕМЬИ`) | Enum (`E`) | `Role` (`OWNER`, `FAMILY_MEMBER`) | `energy_home/domain.py` |
+| `Событие` | Class | `Event` | `energy_home/domain.py` |
+| `Дом / Квартира` | Class | `Home` | `energy_home/domain.py` |
+| `Комната` | Class | `Room` | `energy_home/domain.py` |
+| `Прибор` | Class | `Appliance` | `energy_home/domain.py` |
+| `Устройство учета` | Class | `MeteringDevice` | `energy_home/domain.py` |
+| `Показание` | Class | `Reading` | `energy_home/domain.py` |
+| `Тариф` | Class | `Tariff` | `energy_home/domain.py` |
 
 ### Пакет «Подсистемы»
 
-| Элемент на диаграмме 4.1 | Стереотип | Класс в Python | Файл |
+| Подсистема на диаграмме 4.1 (PDF) | Стереотип | Класс в Python | Файл |
 |---|---|---|---|
-| `Интерфейс приложения` | `<<boundary>>` | `ИнтерфейсПриложения` | `energy_home/subsystems.py` |
-| `Подсистема отчётности` | `<<boundary>>` | `ПодсистемаОтчетности` | `energy_home/subsystems.py` |
-| `Подсистема уведомлений` | `<<control>>` | `ПодсистемаУведомлений` | `energy_home/subsystems.py` |
-| `Подсистема управления доступом` | `<<control>>` | `ПодсистемаУправленияДоступом` | `energy_home/subsystems.py` |
-| `Подсистема сбора данных` | `<<control>>` | `ПодсистемаСбораДанных` | `energy_home/subsystems.py` |
-| `Подсистема анализа` | `<<control>>` | `ПодсистемаАнализа` | `energy_home/subsystems.py` |
-| `Подсистема хранения` | `<<infrastructure>>` | `ПодсистемаХранения` | `energy_home/subsystems.py` |
+| `Интерфейс приложения` | `<<boundary>>` | `ApplicationInterface` | `energy_home/subsystems.py` |
+| `Подсистема отчётности` | `<<boundary>>` | `ReportingSubsystem` | `energy_home/subsystems.py` |
+| `Подсистема уведомлений` | `<<control>>` | `NotificationSubsystem` | `energy_home/subsystems.py` |
+| `Подсистема управления доступом` | `<<control>>` | `AccessControlSubsystem` | `energy_home/subsystems.py` |
+| `Подсистема сбора данных` | `<<control>>` | `DataCollectionSubsystem` | `energy_home/subsystems.py` |
+| `Подсистема анализа` | `<<control>>` | `AnalysisSubsystem` | `energy_home/subsystems.py` |
+| `Подсистема хранения` | `<<infrastructure>>` | `StorageSubsystem` | `energy_home/subsystems.py` |
 
-### Возвращаемые и сопутствующие типы (упомянутые в методах 4.1 / ER / 4.2.3)
+### Возвращаемые и сопутствующие типы (из методов 4.1 / ER / 4.2.3)
 
-| Тип на диаграмме | Класс в Python | Файл | Зачем нужен |
+| Сущность в отчёте | Класс в Python | Файл | Назначение |
 |---|---|---|---|
-| `Отчет` | `Отчет` | `energy_home/domain.py` | Возвращаемое значение `ПодсистемаОтчетности.сформироватьОтчет()` |
-| `Chart` | `Chart` | `energy_home/domain.py` | Возвращаемое значение `ПодсистемаОтчетности.построитьГрафик()` |
-| `Аномалия` | `Аномалия` | `energy_home/domain.py` | Элементы списка из `ПодсистемаАнализа.выявитьАномалии()` |
-| `Лимит` | `Лимит` | `energy_home/domain.py` | Настраивается через `ИнтерфейсПриложения.настроитьЛимит()` |
-| `Уведомление` | `Уведомление` | `energy_home/domain.py` | Создаётся в `ПодсистемаУведомлений.отправитьУведомление()` |
+| `Отчет` | `Report` | `energy_home/domain.py` | Возвращаемое значение `ReportingSubsystem.generate_report()` |
+| `Chart` | `Chart` | `energy_home/domain.py` | Возвращаемое значение `ReportingSubsystem.build_chart()` |
+| `Аномалия` | `Anomaly` | `energy_home/domain.py` | Элементы списка из `AnalysisSubsystem.detect_anomalies()` |
+| `Лимит` | `Limit` | `energy_home/domain.py` | Настраивается через `ApplicationInterface.configure_limit()` |
+| `Уведомление` | `Notification` | `energy_home/domain.py` | Создаётся в `NotificationSubsystem.send_notification()` |
 
 ---
 
@@ -48,165 +48,163 @@
 
 Все доменные классы объявлены в **`energy_home/domain.py`** и реэкспортируются из **`energy_home/__init__.py`**.
 
-### 2.1. `Роль` (Enum)
-- **Файл:** `energy_home/domain.py` (`class Роль(str, Enum)`)
-- **Значения 1:1 с диаграммой:**
-  - `Роль.ВЛАДЕЛЕЦ`
-  - `Роль.ЧЛЕН_СЕМЬИ`
+### 2.1. `Role` (`Роль`, Enum)
+- **Файл:** `energy_home/domain.py` (`class Role(str, Enum)`)
+- **Значения:**
+  - `Role.OWNER` ↔ `ВЛАДЕЛЕЦ`
+  - `Role.FAMILY_MEMBER` ↔ `ЧЛЕН_СЕМЬИ`
 - **Где используется:**
-  - Поле `Пользователь.роль`.
-  - Проверка прав в `ПодсистемаУправленияДоступом.проверитьПрава()` (`energy_home/subsystems.py`).
-  - Охранное условие `[Роль == Владелец]` при переходе в `ОкноНастроек` (`energy_home/state_machine.py` и `server.py`).
+  - Поле `User.role`.
+  - Проверка прав в `AccessControlSubsystem.check_permissions()` (`energy_home/subsystems.py`).
+  - Охранное условие `[Роль == Владелец]` при переходе в `WindowState.SETTINGS_WINDOW` (`energy_home/state_machine.py` и `server.py`).
 
-### 2.2. `Пользователь`
-- **Файл:** `energy_home/domain.py` (`class Пользователь`)
+### 2.2. `User` (`Пользователь`)
+- **Файл:** `energy_home/domain.py` (`class User`)
 - **Атрибуты с диаграммы:**
-  - `логин: str`
-  - `пароль: str` *(хранится в виде PBKDF2-SHA256 хеша)*
+  - `login: str` ↔ `- логин: String`
+  - `password: str` ↔ `- пароль: String` *(хранится как PBKDF2-SHA256 хеш)*
 - **Связи с диаграммы:**
-  - `1 — имеет — 1 Роль` → поле `роль: Роль`
-  - `1 — владеет — 1 Дом / Квартира` → поле `дом: Optional[ДомКвартира]`
-  - `1 — инициирует — * Событие` → поле `события: list[Событие]`
+  - `1 — имеет — 1 Роль` → `role: Role`
+  - `1 — владеет — 1 Дом / Квартира` → `home: Optional[Home]`
+  - `1 — инициирует — * Событие` → `events: list[Event]`
 - **Методы с диаграммы:**
-  - `авторизоваться(введенный_пароль: Optional[str] = None) -> bool` — проверяет пароль (PBKDF2-SHA256 или прямое сравнение в unit-тестах) и при успехе фиксирует `Событие("вход_в_систему")`.
-- **Где используется:** `ПодсистемаУправленияДоступом.войти()`, `зарегистрировать()`, `energy_home/seed.py` (создание `user@example.com` и `family@example.com`).
+  - `authenticate(candidate_password: Optional[str] = None) -> bool` ↔ `+ авторизоваться(): Boolean`
+- **Где используется:** `AccessControlSubsystem.login()`, `register()`, `energy_home/seed.py`.
 
-### 2.3. `Событие`
-- **Файл:** `energy_home/domain.py` (`class Событие`)
+### 2.3. `Event` (`Событие`)
+- **Файл:** `energy_home/domain.py` (`class Event`)
 - **Атрибуты с диаграммы:**
-  - `тип: str`
-  - `дата: datetime`
-- **Дополнительные поля:** `описание: str`, `пользователь: Optional[str]`.
-- **Где используется:**
-  - Фиксируется при входе/выходе, регистрации, ошибках авторизации, изменении настроек, добавлении комнат/устройств, смене состояния прибора (`energy_home/subsystems.py`).
-  - Хранится в `ПодсистемаХранения.события`.
+  - `event_type: str` ↔ `- тип: String`
+  - `timestamp: datetime` ↔ `- дата: DateTime`
+- **Дополнительные поля:** `description: str`, `user_login: Optional[str]`.
+- **Где используется:** журнал событий при входе/выходе, регистрации, ошибках авторизации, изменении настроек, добавлении комнат/приборов и смене состояний (`energy_home/subsystems.py`, `StorageSubsystem.events`).
 
-### 2.4. `ДомКвартира` (`Дом / Квартира`)
-- **Файл:** `energy_home/domain.py` (`class ДомКвартира`)
+### 2.4. `Home` (`Дом / Квартира`)
+- **Файл:** `energy_home/domain.py` (`class Home`)
 - **Атрибуты с диаграммы:**
-  - `адрес: str`
+  - `address: str` ↔ `- адрес: String`
 - **Связи с диаграммы:**
-  - `1 — содержит (композиция) — * Комната` → поле `комнаты: list[Комната]`
+  - `1 — содержит (композиция) — * Комната` → `rooms: list[Room]`
 - **Методы с диаграммы:**
-  - `получитьОбщееПотребление() -> float` — суммирует расход электроэнергии по показаниям всех приборов во всех комнатах дома.
-- **Вспомогательные методы:** `текущая_мощность_квт()`, `добавить_комнату()`.
-- **Где используется:** `ИнтерфейсПриложения.показатьПотребление()`, `ПодсистемаАнализа.рассчитатьРасход()`, `energy_home/seed.py`.
+  - `get_total_consumption() -> float` ↔ `+ получитьОбщееПотребление(): Double`
+- **Вспомогательные методы:** `current_power_kw()`, `add_room()`.
+- **Где используется:** `ApplicationInterface.show_consumption()`, `AnalysisSubsystem.calculate_consumption()`, `energy_home/seed.py`.
 
-### 2.5. `Комната`
-- **Файл:** `energy_home/domain.py` (`class Комната`)
+### 2.5. `Room` (`Комната`)
+- **Файл:** `energy_home/domain.py` (`class Room`)
 - **Атрибуты с диаграммы:**
-  - `название: str`
+  - `name: str` ↔ `- название: String`
 - **Связи с диаграммы:**
-  - `1 — содержит (композиция) — * Прибор` → поле `приборы: list[Прибор]`
-- **Где используется:** дерево помещений в `ОкноУстройств` (`Кухня`, `Спальня`, `Зал`, `Санузел`), добавление новой комнаты в `ИнтерфейсПриложения.добавить_помещение()` и маршруте `POST /api/rooms` (`server.py`).
+  - `1 — содержит (композиция) — * Прибор` → `appliances: list[Appliance]`
+- **Где используется:** дерево помещений (`Кухня`, `Спальня`, `Зал`, `Санузел`) в окне устройств, добавление комнат через `ApplicationInterface.add_room()` и `POST /api/rooms` (`server.py`).
 
-### 2.6. `Прибор`
-- **Файл:** `energy_home/domain.py` (`class Прибор`)
+### 2.6. `Appliance` (`Прибор`)
+- **Файл:** `energy_home/domain.py` (`class Appliance`)
 - **Атрибуты с диаграммы:**
-  - `название: str`
-  - `мощность: float`
+  - `name: str` ↔ `- название: String`
+  - `power: float` ↔ `- мощность: Double`
 - **Связи с диаграммы:**
-  - `1 — оснащен — 1 Устройство учета` → поле `устройство_учета: Optional[УстройствоУчета]`
-- **Интеграция с диаграммой 5.1:**
-  - Поле `автомат: АвтоматСостоянийПрибора` (`energy_home/state_machine.py`) управляет состояниями `Выключен` / `Включен` / `Гибкая_нагрузка` / `Аварийный_режим` / `Списан`.
-- **Где используется:** отображение в дереве устройств (`строка_для_дерева()`), `ИнтерфейсПриложения.добавить_устройство()`, `изменить_состояние_прибора()`, маршруты `POST /api/devices` и `POST /api/device-state`.
+  - `1 — оснащен — 1 Устройство учета` → `metering_device: Optional[MeteringDevice]`
+- **Интеграция с диаграммой состояний 5.1:**
+  - Поле `state_machine: DeviceStateMachine` (`energy_home/state_machine.py`) управляет жизненным циклом (`OFF`, `ON` [`IDLE_WAITING`, `NORMAL_OPERATION`, `FLEXIBLE_LOAD`], `EMERGENCY_MODE` [`ANOMALY_DETECTED`, `LINE_DISCONNECTED`], `RETIRED`).
+- **Где используется:** `ApplicationInterface.add_device()`, `change_appliance_state()`, `POST /api/devices`, `POST /api/device-state`.
 
-### 2.7. `УстройствоУчета` (`Устройство учета`)
-- **Файл:** `energy_home/domain.py` (`class УстройствоУчета`)
+### 2.7. `MeteringDevice` (`Устройство учета`)
+- **Файл:** `energy_home/domain.py` (`class MeteringDevice`)
 - **Атрибуты с диаграммы:**
-  - `тип: str` (`"Счётчик"`, `"Умная розетка"`, `"Датчик"`)
-  - `серийныйНомер: str`
+  - `device_type: str` ↔ `- тип: String`
+  - `serial_number: str` ↔ `- серийныйНомер: String`
 - **Связи с диаграммы:**
-  - `1 — фиксирует — * Показание` → поле `показания: list[Показание]`
+  - `1 — фиксирует — * Показание` → `readings: list[Reading]`
 - **Методы с диаграммы:**
-  - `считатьПоказание(значение=None, время=None, мощность_вт=None) -> Показание` — формирует и добавляет новое `Показание`, привязанное к активному тарифу.
-- **Где используется:** `ПодсистемаСбораДанных.опроситьУстройства()`, `Шлюз.передать_показание()`.
+  - `read_measurement(value=None, timestamp=None, power_w=None) -> Reading` ↔ `+ считатьПоказание(): Показание`
+- **Где используется:** `DataCollectionSubsystem.poll_devices()`, `SensorGateway.submit_reading()`.
 
-### 2.8. `Показание`
-- **Файл:** `energy_home/domain.py` (`class Показание`)
+### 2.8. `Reading` (`Показание`)
+- **Файл:** `energy_home/domain.py` (`class Reading`)
 - **Атрибуты с диаграммы:**
-  - `значение: float` *(кВт·ч)*
-  - `время: datetime`
+  - `value: float` ↔ `- значение: Double`
+  - `timestamp: datetime` ↔ `- время: DateTime`
 - **Связи с диаграммы:**
-  - `1 — рассчитывается по — 1 Тариф` → поле `тариф: Optional[Тариф]`
-- **Вспомогательный метод:** `стоимость() -> float` (умножает `значение` на дневную или ночную цену из `тариф`).
-- **Где используется:** `ПодсистемаСбораДанных`, `ПодсистемаХранения.показания`, `ПодсистемаАнализа`, `Шлюз` (`POST /api/readings`).
+  - `1 — рассчитывается по — 1 Тариф` → `tariff: Optional[Tariff]`
+- **Вспомогательный метод:** `cost() -> float`.
+- **Где используется:** `DataCollectionSubsystem`, `StorageSubsystem.readings`, `AnalysisSubsystem`, `SensorGateway` (`POST /api/readings`).
 
-### 2.9. `Тариф`
-- **Файл:** `energy_home/domain.py` (`class Тариф`)
+### 2.9. `Tariff` (`Тариф`)
+- **Файл:** `energy_home/domain.py` (`class Tariff`)
 - **Атрибуты с диаграммы:**
-  - `стоимостьДень: float` *(по умолчанию `5.50` как на макете 5)*
-  - `стоимостьНочь: float` *(по умолчанию `2.10` как на макете 5)*
-- **Вспомогательный метод:** `цена_для_времени(время: datetime) -> float` (учитывает границы дня/ночи `7:00–23:00`).
-- **Где используется:** `Показание`, `ПодсистемаХранения.тарифы`, `ИнтерфейсПриложения.настроитьЛимит()`, `ОкноНастроек` (`POST /api/settings`).
+  - `day_rate: float` ↔ `- стоимостьДень: Double` *(по умолчанию `5.50`)*
+  - `night_rate: float` ↔ `- стоимостьНочь: Double` *(по умолчанию `2.10`)*
+- **Вспомогательный метод:** `rate_for_time(timestamp: datetime) -> float`.
+- **Где используется:** `Reading`, `StorageSubsystem.tariffs`, `ApplicationInterface.configure_limit()`, `POST /api/settings`.
 
 ---
 
 ## 3. Подробный разбор: Пакет «Подсистемы»
 
-Все 7 подсистем базовой диаграммы 4.1 реализованы в **`energy_home/subsystems.py`** и связываются между собой в фабрике **`создать_систему()`** (`energy_home/seed.py`).
+Все 7 подсистем диаграммы 4.1 объявлены в **`energy_home/subsystems.py`** и собираются в **`create_system()`** (`energy_home/seed.py`).
 
-### 3.1. `ПодсистемаХранения` (`<<infrastructure>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаХранения`)
+### 3.1. `StorageSubsystem` (`Подсистема хранения`, `<<infrastructure>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `сохранить(объект: Any) -> None` — сохраняет `Пользователь`, `ДомКвартира`, `Тариф`, `Лимит`, `Показание`, `Событие`, `Аномалия`, `Уведомление`, `Отчет`.
-  - `найти(критерий: Any) -> list[Any]` — ищет по классу (например `найти(Показание)`), имени коллекции (`найти("события")`), словарю атрибутов или функции-предикату.
-- **Зависимости с диаграммы (`..>`):** хранит `Событие`, `Показание`, `Тариф` (и сопутствующие сущности).
+  - `save(obj: Any) -> None` ↔ `+ сохранить(объект): void`
+  - `find(criteria: Any) -> list[Any]` ↔ `+ найти(критерий): List`
+- **Зависимости (`..>`):** хранит `Event`, `Reading`, `Tariff` (и остальные доменные сущности).
 
-### 3.2. `ПодсистемаУправленияДоступом` (`<<control>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаУправленияДоступом`)
+### 3.2. `AccessControlSubsystem` (`Подсистема управления доступом`, `<<control>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `проверитьПрава(пользователь: Optional[Пользователь], действие: str) -> bool` — проверяет матрицу прав `ПРАВА_ПО_РОЛЯМ` по `Роль.ВЛАДЕЛЕЦ` и `Роль.ЧЛЕН_СЕМЬИ`.
-- **Дополнительные методы аутентификации:** `войти()`, `выйти()`, `получить_пользователя()`, `зарегистрировать()`, `требовать_права()`.
-- **Зависимости с диаграммы (`..>`):** проверяет `Пользователь`, использует `Роль`.
-- **Где вызывается в API:** `server.py` на каждом запросе (`/api/login`, `/api/register`, `/api/logout`, `/api/state`, `/api/navigate`, `/api/rooms`, `/api/devices`, `/api/device-state`, `/api/settings`).
+  - `check_permissions(user: Optional[User], action: str) -> bool` ↔ `+ проверитьПрава(пользователь, действие): Boolean`
+- **Дополнительные методы:** `login()`, `logout()`, `get_user()`, `register()`, `require_permission()`.
+- **Зависимости (`..>`):** проверяет `User`, использует `Role`.
+- **Где вызывается:** на всех защищённых маршрутах в `server.py`.
 
-### 3.3. `ПодсистемаСбораДанных` (`<<control>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаСбораДанных`)
+### 3.3. `DataCollectionSubsystem` (`Подсистема сбора данных`, `<<control>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `опроситьУстройства(дом=None) -> list[Показание]` — обходит комнаты и включённые приборы дома, вызывает `УстройствоУчета.считатьПоказание()`.
-  - `сохранитьПоказания(показания=None) -> None` — валидирует показания и передаёт их в `ПодсистемаХранения.сохранить()`.
-- **Зависимости с диаграммы (`..>`):** опрашивает `УстройствоУчета`, передаёт данные в `ПодсистемаХранения`.
+  - `poll_devices(home=None) -> list[Reading]` ↔ `+ опроситьУстройства(): List`
+  - `save_readings(readings=None) -> None` ↔ `+ сохранитьПоказания(): void`
+- **Зависимости (`..>`):** опрашивает `MeteringDevice`, передаёт данные в `StorageSubsystem`.
 
-### 3.4. `ПодсистемаАнализа` (`<<control>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаАнализа`)
+### 3.4. `AnalysisSubsystem` (`Подсистема анализа`, `<<control>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `рассчитатьРасход(дом=None, период=None) -> float` — рассчитывает суммарное потребление (кВт·ч).
-  - `выявитьАномалии(дом=None, критический_множитель=1.2) -> list[Аномалия]` — выявляет скачки мощности и формирует список объектов `Аномалия`.
-- **Дополнительный метод:** `проверить_лимиты(дом)` (проверка дневного лимита и 80%/100% месячного лимита).
-- **Зависимости с диаграммы (`..>`):** читает данные из `ПодсистемаХранения`.
+  - `calculate_consumption(home=None, period=None) -> float` ↔ `+ рассчитатьРасход(): Double`
+  - `detect_anomalies(home=None, spike_multiplier=1.2) -> list[Anomaly]` ↔ `+ выявитьАномалии(): List`
+- **Дополнительный метод:** `check_limits(home)` (дневной лимит и 80%/100% месячного лимита).
+- **Зависимости (`..>`):** читает данные из `StorageSubsystem`.
 
-### 3.5. `ПодсистемаУведомлений` (`<<control>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаУведомлений`)
+### 3.5. `NotificationSubsystem` (`Подсистема уведомлений`, `<<control>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `отправитьУведомление(текст=None, тип="warning") -> None` — получает аномалии из `ПодсистемаАнализа` (при вызове без аргументов) или принимает готовый текст, создаёт `Уведомление` и сохраняет его в `ПодсистемаХранения`.
-- **Зависимости с диаграммы (`..>`):** получает аномалии от `ПодсистемаАнализа`.
+  - `send_notification(message=None, notification_type="warning") -> None` ↔ `+ отправитьУведомление(): void`
+- **Зависимости (`..>`):** получает аномалии из `AnalysisSubsystem` и сохраняет `Notification` в `StorageSubsystem`.
 
-### 3.6. `ПодсистемаОтчетности` (`<<boundary>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ПодсистемаОтчетности`)
+### 3.6. `ReportingSubsystem` (`Подсистема отчётности`, `<<boundary>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `сформироватьОтчет(период="week", дом=None) -> Отчет` — собирает `Отчет` с общим расходом, стоимостью, графиком и аномалиями.
-  - `построитьГрафик(период="week") -> Chart` — строит объект `Chart` для периодов `day`, `week`, `month`.
-- **Зависимости с диаграммы (`..>`):** использует результаты `ПодсистемаАнализа`.
-- **Где используется:** `GET /api/state?period=...` и экран `ОкноОтчетов` (`public/app.js` → `drawReportChart()`).
+  - `generate_report(period="week", home=None) -> Report` ↔ `+ сформироватьОтчет(): Отчет`
+  - `build_chart(period="week") -> Chart` ↔ `+ построитьГрафик(): Chart`
+- **Зависимости (`..>`):** использует результаты `AnalysisSubsystem`.
+- **Где используется:** `GET /api/state?period=...` и экран отчётов (`public/app.js` → `drawReportChart()`).
 
-### 3.7. `ИнтерфейсПриложения` (`<<boundary>>`)
-- **Файл:** `energy_home/subsystems.py` (`class ИнтерфейсПриложения`)
+### 3.7. `ApplicationInterface` (`Интерфейс приложения`, `<<boundary>>`)
+- **Файл:** `energy_home/subsystems.py`
 - **Методы с диаграммы:**
-  - `показатьПотребление(пользователь=None) -> dict` — возвращает текущую мощность, расход за сегодня и активные предупреждения для `ГлавноеОкно`.
-  - `настроитьЛимит(пользователь=None, месячный_лимит_руб=None, стоимость_день=None, стоимость_ночь=None, уведомлять_при_80=None) -> dict` — сохраняет лимит, тарифы и флаг 80% уведомлений (только для `Роль.ВЛАДЕЛЕЦ`).
-- **Дополнительные методы для 5 окон:** `добавить_помещение()`, `добавить_устройство()`, `изменить_состояние_прибора()`, `автомат_окон()`.
-- **Зависимости с диаграммы (`..>`):**
-  - запрашивает отчёты у `ПодсистемаОтчетности` (`self.отчетность`);
-  - отображает данные `ПодсистемаСбораДанных` (`self.сбор`);
-  - делегирует проверку `ПодсистемаУправленияДоступом` (`self.доступ`);
-  - взаимодействует с `Пользователь`.
+  - `show_consumption(user=None) -> dict` ↔ `+ показатьПотребление(): void`
+  - `configure_limit(user=None, monthly_budget_byn=None, day_rate=None, night_rate=None, notify_at_80=None) -> dict` ↔ `+ настроитьЛимит(): void`
+- **Дополнительные методы:** `add_room()`, `add_device()`, `change_appliance_state()`, `window_fsm()`.
+- **Зависимости (`..>`):**
+  - запрашивает отчёты у `ReportingSubsystem` (`self.reporting`);
+  - отображает данные `DataCollectionSubsystem` (`self.collection`);
+  - делегирует проверку `AccessControlSubsystem` (`self.access_control`);
+  - взаимодействует с `User`.
 
 ---
 
 ## 4. Как всё соединяется при запуске
 
-1. **`server.py` (`EnergyHomeApp.__init__`)** вызывает **`создать_систему()`** из **`energy_home/seed.py`**.
-2. **`energy_home/seed.py`** инстанцирует все 7 подсистем диаграммы 4.1 (`ПодсистемаХранения`, `ПодсистемаУправленияДоступом`, `ПодсистемаСбораДанных`, `ПодсистемаАнализа`, `ПодсистемаУведомлений`, `ПодсистемаОтчетности`, `ИнтерфейсПриложения`) и наполняет `ПодсистемаХранения` начальными объектами домена (`Тариф`, `Лимит`, `ДомКвартира`, 4 `Комната`, `Прибор` + `УстройствоУчета`, 2 `Пользователь`, `Аномалия`, `Уведомление`, `Событие`).
-3. **`server.py` (`EnergyHomeRequestHandler`)** принимает HTTP-запросы от веб-интерфейса (`public/index.html`, `public/app.js`) на порту `3000` и делегирует бизнес-логику в `ИнтерфейсПриложения` и подсистемы.
-4. **`tests/test_energy_home.py`** (`TestBaseClassDiagram41`) автоматически проверяет все классы, атрибуты, методы (включая вызовы без аргументов 1:1 по диаграмме 4.1) и правила RBAC.
+1. **`server.py` (`EnergyHomeApp.__init__`)** вызывает **`create_system()`** из **`energy_home/seed.py`**.
+2. **`energy_home/seed.py`** создаёт все 7 подсистем диаграммы 4.1 (`StorageSubsystem`, `AccessControlSubsystem`, `DataCollectionSubsystem`, `AnalysisSubsystem`, `NotificationSubsystem`, `ReportingSubsystem`, `ApplicationInterface`) и заполняет `StorageSubsystem` начальными объектами домена (`Tariff`, `Limit`, `Home`, 4 `Room`, `Appliance` + `MeteringDevice`, 2 `User`, `Anomaly`, `Notification`, `Event`).
+3. **`server.py` (`EnergyHomeRequestHandler`)** принимает HTTP-запросы от веб-интерфейса (`public/index.html`, `public/app.js`) на порту `3000` и вызывает методы `ApplicationInterface` и подсистем.
+4. **`tests/test_energy_home.py`** (`TestBaseClassDiagram41`) проверяет все классы, атрибуты, методы и правила RBAC.

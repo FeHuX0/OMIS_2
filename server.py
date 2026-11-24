@@ -1,4 +1,4 @@
-"""HTTP-сервер Energy Home (100% Python stdlib, порт 3000)."""
+"""Energy Home HTTP Server (100% Python stdlib, port 3000)."""
 
 from __future__ import annotations
 
@@ -15,112 +15,112 @@ from urllib.parse import parse_qs, urlparse
 
 from energy_home.domain import (
     LOCAL_TZ,
-    ОшибкаВалидации,
-    ОшибкаДомена,
-    ОшибкаДоступа,
-    Показание,
-    Пользователь,
-    Роль,
+    AccessDeniedError,
+    DomainError,
+    Reading,
+    Role,
+    User,
+    ValidationError,
 )
-from energy_home.seed import создать_систему
-from energy_home.state_machine import СостояниеОкна
-from energy_home.subsystems import ИнтерфейсПриложения
+from energy_home.seed import create_system
+from energy_home.state_machine import WindowState
+from energy_home.subsystems import ApplicationInterface
 
 ROOT_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT_DIR / "public"
 
 
 class EnergyHomeApp:
-    """Потокобезопасный контроллер веб-приложения поверх ИнтерфейсПриложения (4.1)."""
+    """Thread-safe web application controller over ApplicationInterface (Diagram 4.1)."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self.интерфейс: ИнтерфейсПриложения = создать_систему()
+        self.app_interface: ApplicationInterface = create_system()
 
-    def _сериализовать_состояние(self, пользователь: Пользователь, токен: str, период: str = "week") -> dict[str, Any]:
-        if период not in ("day", "week", "month"):
-            период = "week"
-        потребление = self.интерфейс.показатьПотребление(пользователь)
-        отчет = self.интерфейс.отчетность.сформироватьОтчет(период=период, дом=пользователь.дом)
-        тариф = self.интерфейс.хранение.активный_тариф()
-        лимит = self.интерфейс.хранение.активный_лимит()
-        автомат_окон = self.интерфейс.автомат_окон(токен)
+    def _serialize_state(self, user: User, token: str, period: str = "week") -> dict[str, Any]:
+        if period not in ("day", "week", "month"):
+            period = "week"
+        consumption = self.app_interface.show_consumption(user)
+        report = self.app_interface.reporting.generate_report(period=period, home=user.home)
+        tariff = self.app_interface.storage.active_tariff()
+        limit = self.app_interface.storage.active_limit()
+        window_fsm = self.app_interface.window_fsm(token)
 
-        комнаты_json = []
-        if пользователь.дом is not None:
-            for комната in пользователь.дом.комнаты:
-                приборы_json = []
-                for прибор in комната.приборы:
-                    приборы_json.append(
+        rooms_json = []
+        if user.home is not None:
+            for room in user.home.rooms:
+                appliances_json = []
+                for appliance in room.appliances:
+                    appliances_json.append(
                         {
-                            "id": прибор.id,
-                            "название": прибор.название,
-                            "мощность": прибор.мощность,
-                            "текущая_мощность_вт": прибор.текущая_мощность_вт(),
-                            "строка": прибор.строка_для_дерева(),
-                            "тип_устройства": прибор.устройство_учета.тип if прибор.устройство_учета else "—",
-                            "серийный_номер": прибор.устройство_учета.серийныйНомер if прибор.устройство_учета else "—",
-                            "внешнее_состояние": прибор.автомат.внешнее_состояние.value,
-                            "внутреннее_состояние": (
-                                прибор.автомат.внутреннее_состояние.value
-                                if прибор.автомат.внутреннее_состояние
+                            "id": appliance.id,
+                            "name": appliance.name,
+                            "power": appliance.power,
+                            "current_power_w": appliance.current_power_w(),
+                            "tree_label": appliance.tree_label(),
+                            "device_type": appliance.metering_device.device_type if appliance.metering_device else "—",
+                            "serial_number": appliance.metering_device.serial_number if appliance.metering_device else "—",
+                            "outer_state": appliance.state_machine.outer_state.value,
+                            "inner_state": (
+                                appliance.state_machine.inner_state.value
+                                if appliance.state_machine.inner_state
                                 else None
                             ),
-                            "доступные_действия": прибор.автомат.доступные_действия(),
+                            "available_actions": appliance.state_machine.available_actions(),
                         }
                     )
-                комнаты_json.append(
+                rooms_json.append(
                     {
-                        "id": комната.id,
-                        "название": комната.название,
-                        "свернута_по_умолчанию": комната.свернута_по_умолчанию,
-                        "приборы": приборы_json,
+                        "id": room.id,
+                        "name": room.name,
+                        "collapsed_by_default": room.collapsed_by_default,
+                        "appliances": appliances_json,
                     }
                 )
 
         return {
-            "текущее_окно": автомат_окон.текущее_окно.value,
-            "пользователь": {
-                "логин": пользователь.логин,
-                "имя": пользователь.имя,
-                "роль": пользователь.роль.value,
-                "роль_подпись": пользователь.роль.отображаемое_название,
-                "владелец": пользователь.роль == Роль.ВЛАДЕЛЕЦ,
+            "current_window": window_fsm.current_window.value,
+            "user": {
+                "login": user.login,
+                "name": user.name,
+                "role": user.role.value,
+                "role_label": user.role.display_label,
+                "is_owner": user.role == Role.OWNER,
             },
-            "главное": {
-                "текущая_мощность_квт": потребление["текущая_мощность_квт"],
-                "расход_за_сегодня_квтч": потребление["расход_за_сегодня_квтч"],
-                "предупреждения": потребление["предупреждения"],
+            "main": {
+                "current_power_kw": consumption["current_power_kw"],
+                "daily_consumption_kwh": consumption["daily_consumption_kwh"],
+                "alerts": consumption["alerts"],
             },
-            "помещения": комнаты_json,
-            "отчет": {
-                "период": отчет.период,
-                "общий_расход_квтч": отчет.общий_расход_квтч,
-                "общая_стоимость_руб": отчет.общая_стоимость_руб,
-                "график": {
-                    "заголовок": отчет.график.заголовок,
-                    "подзаголовок": отчет.график.подзаголовок,
-                    "метки": отчет.график.метки,
-                    "значения": отчет.график.значения,
-                    "шаг_оси_y": отчет.график.шаг_оси_y,
-                    "максимум_оси_y": отчет.график.максимум_оси_y,
+            "rooms": rooms_json,
+            "report": {
+                "period": report.period,
+                "total_consumption_kwh": report.total_consumption_kwh,
+                "total_cost_byn": report.total_cost_byn,
+                "chart": {
+                    "title": report.chart.title,
+                    "subtitle": report.chart.subtitle,
+                    "labels": report.chart.labels,
+                    "values": report.chart.values,
+                    "y_step": report.chart.y_step,
+                    "y_max": report.chart.y_max,
                 },
-                "аномалии": [
+                "anomalies": [
                     {
-                        "тип": a.тип,
-                        "величина": a.величина,
-                        "место": a.место,
-                        "описание": a.описать(),
+                        "type": a.anomaly_type,
+                        "magnitude": a.magnitude,
+                        "location": a.location,
+                        "description": a.describe(),
                     }
-                    for a in отчет.аномалии
+                    for a in report.anomalies
                 ],
             },
-            "настройки": {
-                "месячный_лимит_руб": лимит.месячный_лимит_руб,
-                "дневной_лимит_квтч": лимит.дневной_лимит_квтч,
-                "стоимость_день": тариф.стоимостьДень,
-                "стоимость_ночь": тариф.стоимостьНочь,
-                "уведомлять_при_80": лимит.уведомлять_при_80,
+            "settings": {
+                "monthly_budget_byn": limit.monthly_budget_byn,
+                "daily_limit_kwh": limit.daily_limit_kwh,
+                "day_rate": tariff.day_rate,
+                "night_rate": tariff.night_rate,
+                "notify_at_80": limit.notify_at_80,
             },
         }
 
@@ -135,158 +135,157 @@ class EnergyHomeApp:
         with self._lock:
             try:
                 if method == "POST" and path == "/api/login":
-                    логин = str(body.get("login", ""))
-                    пароль = str(body.get("password", ""))
-                    новый_токен, пользователь = self.интерфейс.доступ.войти(логин, пароль)
-                    self.интерфейс.автомат_окон(новый_токен).текущее_окно = СостояниеОкна.ГЛАВНОЕ_ОКНО
+                    login = str(body.get("login", ""))
+                    password = str(body.get("password", ""))
+                    new_token, user = self.app_interface.access_control.login(login, password)
+                    self.app_interface.window_fsm(new_token).current_window = WindowState.MAIN_WINDOW
                     return HTTPStatus.OK, {
-                        "token": новый_токен,
-                        "state": self._сериализовать_состояние(пользователь, новый_токен),
+                        "token": new_token,
+                        "state": self._serialize_state(user, new_token),
                     }
 
                 if method == "POST" and path == "/api/register":
-                    логин = str(body.get("login", ""))
-                    пароль = str(body.get("password", ""))
-                    имя = str(body.get("name", ""))
-                    роль_стр = str(body.get("role", Роль.ВЛАДЕЛЕЦ.value))
-                    роль = Роль.ЧЛЕН_СЕМЬИ if роль_стр == Роль.ЧЛЕН_СЕМЬИ.value else Роль.ВЛАДЕЛЕЦ
-                    новый_токен, пользователь = self.интерфейс.доступ.зарегистрировать(
-                        логин=логин,
-                        пароль=пароль,
-                        имя=имя,
-                        роль=роль,
+                    login = str(body.get("login", ""))
+                    password = str(body.get("password", ""))
+                    name = str(body.get("name", ""))
+                    role_str = str(body.get("role", Role.OWNER.value))
+                    role = Role.FAMILY_MEMBER if role_str == Role.FAMILY_MEMBER.value else Role.OWNER
+                    new_token, user = self.app_interface.access_control.register(
+                        login=login,
+                        password=password,
+                        name=name,
+                        role=role,
                     )
-                    self.интерфейс.автомат_окон(новый_токен).текущее_окно = СостояниеОкна.ГЛАВНОЕ_ОКНО
+                    self.app_interface.window_fsm(new_token).current_window = WindowState.MAIN_WINDOW
                     return HTTPStatus.OK, {
-                        "token": новый_токен,
-                        "state": self._сериализовать_состояние(пользователь, новый_токен),
+                        "token": new_token,
+                        "state": self._serialize_state(user, new_token),
                     }
 
                 if method == "POST" and path == "/api/logout":
                     if token:
-                        self.интерфейс.автомат_окон(token).текущее_окно = СостояниеОкна.ОКНО_АВТОРИЗАЦИИ
-                        self.интерфейс.доступ.выйти(token)
+                        self.app_interface.window_fsm(token).current_window = WindowState.AUTH_WINDOW
+                        self.app_interface.access_control.logout(token)
                     return HTTPStatus.OK, {"ok": True}
 
-                пользователь = self.интерфейс.доступ.получить_пользователя(token)
+                user = self.app_interface.access_control.get_user(token)
                 assert token is not None
 
                 if method == "GET" and path == "/api/state":
-                    период = (query.get("period") or ["week"])[0]
-                    return HTTPStatus.OK, self._сериализовать_состояние(пользователь, token, период)
+                    period = (query.get("period") or ["week"])[0]
+                    return HTTPStatus.OK, self._serialize_state(user, token, period)
 
                 if method == "POST" and path == "/api/navigate":
-                    цель_стр = str(body.get("target", ""))
+                    target_str = str(body.get("target", ""))
                     try:
-                        цель = СостояниеОкна(цель_стр)
+                        target = WindowState(target_str)
                     except ValueError as err:
-                        raise ОшибкаВалидации(f"Неизвестное окно: {цель_стр}") from err
-                    автомат = self.интерфейс.автомат_окон(token)
+                        raise ValidationError(f"Неизвестное окно: {target_str}") from err
+                    fsm = self.app_interface.window_fsm(token)
                     try:
-                        автомат.перейти(цель, роль_владелец=(пользователь.роль == Роль.ВЛАДЕЛЕЦ))
+                        fsm.transition(target, is_owner=(user.role == Role.OWNER))
                     except PermissionError as err:
-                        raise ОшибкаДоступа(str(err)) from err
+                        raise AccessDeniedError(str(err)) from err
                     except ValueError as err:
-                        raise ОшибкаВалидации(str(err)) from err
-                    период = str(body.get("period", "week"))
-                    return HTTPStatus.OK, self._сериализовать_состояние(пользователь, token, период)
+                        raise ValidationError(str(err)) from err
+                    period = str(body.get("period", "week"))
+                    return HTTPStatus.OK, self._serialize_state(user, token, period)
 
                 if method == "POST" and path == "/api/rooms":
-                    название = str(body.get("name", ""))
-                    комната = self.интерфейс.добавить_помещение(пользователь, название)
+                    name = str(body.get("name", ""))
+                    room = self.app_interface.add_room(user, name)
                     return HTTPStatus.OK, {
-                        "id": комната.id,
-                        "state": self._сериализовать_состояние(пользователь, token),
+                        "id": room.id,
+                        "state": self._serialize_state(user, token),
                     }
 
                 if method == "POST" and path == "/api/devices":
                     try:
-                        id_комнаты = int(body.get("room_id", 0))
-                        мощность_вт = float(body.get("power_w", 0))
+                        room_id = int(body.get("room_id", 0))
+                        power_w = float(body.get("power_w", 0))
                     except (TypeError, ValueError) as err:
-                        raise ОшибкаВалидации("Укажите корректную комнату и мощность (число в Вт).") from err
-                    прибор = self.интерфейс.добавить_устройство(
-                        пользователь=пользователь,
-                        id_комнаты=id_комнаты,
-                        название=str(body.get("name", "")),
-                        тип_устройства=str(body.get("device_type", "Умная розетка")),
-                        серийный_номер=str(body.get("serial", "")),
-                        мощность_вт=мощность_вт,
+                        raise ValidationError("Укажите корректную комнату и мощность (число в Вт).") from err
+                    appliance = self.app_interface.add_device(
+                        user=user,
+                        room_id=room_id,
+                        name=str(body.get("name", "")),
+                        device_type=str(body.get("device_type", "Умная розетка")),
+                        serial_number=str(body.get("serial", "")),
+                        power_w=power_w,
                     )
                     return HTTPStatus.OK, {
-                        "id": прибор.id,
-                        "state": self._сериализовать_состояние(пользователь, token),
+                        "id": appliance.id,
+                        "state": self._serialize_state(user, token),
                     }
 
                 if method == "POST" and path == "/api/device-state":
                     try:
-                        id_прибора = int(body.get("device_id", 0))
+                        device_id = int(body.get("device_id", 0))
                     except (TypeError, ValueError) as err:
-                        raise ОшибкаВалидации("Некорректный идентификатор устройства.") from err
-                    действие = str(body.get("action", ""))
-                    self.интерфейс.изменить_состояние_прибора(пользователь, id_прибора, действие)
+                        raise ValidationError("Некорректный идентификатор устройства.") from err
+                    action = str(body.get("action", ""))
+                    self.app_interface.change_appliance_state(user, device_id, action)
                     return HTTPStatus.OK, {
-                        "state": self._сериализовать_состояние(пользователь, token),
+                        "state": self._serialize_state(user, token),
                     }
 
                 if method == "POST" and path == "/api/readings":
-                    self.интерфейс.доступ.требовать_права(пользователь, "управление_устройствами")
+                    self.app_interface.access_control.require_permission(user, "manage_devices")
                     try:
-                        id_прибора = int(body.get("device_id", 0))
-                        мощность_вт = float(body.get("power_w", 0))
-                        значение_квтч = float(body.get("energy_kwh", 0))
+                        device_id = int(body.get("device_id", 0))
+                        power_w = float(body.get("power_w", 0))
+                        energy_kwh = float(body.get("energy_kwh", 0))
                     except (TypeError, ValueError) as err:
-                        raise ОшибкаВалидации("Введите числовые значения мощности и энергии.") from err
-                    дом = пользователь.дом
-                    if дом is None:
-                        raise ОшибкаВалидации("Дом не найден.")
-                    целевой = None
-                    for комната in дом.комнаты:
-                        for прибор in комната.приборы:
-                            if прибор.id == id_прибора:
-                                целевой = прибор
+                        raise ValidationError("Введите числовые значения мощности и энергии.") from err
+                    home = user.home
+                    if home is None:
+                        raise ValidationError("Дом не найден.")
+                    target = None
+                    for room in home.rooms:
+                        for appliance in room.appliances:
+                            if appliance.id == device_id:
+                                target = appliance
                                 break
-                    if целевой is None:
-                        raise ОшибкаВалидации("Прибор не найден.")
-                    пок = Показание(
-                        значение=значение_квтч,
-                        время=datetime.now(LOCAL_TZ),
-                        тариф=self.интерфейс.хранение.активный_тариф(),
-                        мощность_вт=мощность_вт,
+                    if target is None:
+                        raise ValidationError("Прибор не найден.")
+                    reading = Reading(
+                        value=energy_kwh,
+                        timestamp=datetime.now(LOCAL_TZ),
+                        tariff=self.app_interface.storage.active_tariff(),
+                        power_w=power_w,
                     )
-                    рез = self.интерфейс.шлюз.передать_показание(целевой, пок, дом)
+                    result = self.app_interface.gateway.submit_reading(target, reading, home)
                     return HTTPStatus.OK, {
-                        "result": рез,
-                        "state": self._сериализовать_состояние(пользователь, token),
+                        "result": result,
+                        "state": self._serialize_state(user, token),
                     }
 
                 if method == "POST" and path == "/api/settings":
                     try:
-                        месячный_лимит = float(body.get("monthly_limit"))
-                        стоимость_день = float(body.get("day_rate"))
-                        стоимость_ночь = float(body.get("night_rate"))
+                        monthly_limit = float(body.get("monthly_limit"))
+                        day_rate = float(body.get("day_rate"))
+                        night_rate = float(body.get("night_rate"))
                     except (TypeError, ValueError) as err:
-                        raise ОшибкаВалидации("Введите числовые значения лимита и тарифов.") from err
-                    уведомлять_80 = bool(body.get("notify_80", True))
-                    self.интерфейс.настроитьЛимит(
-                        пользователь=пользователь,
-                        месячный_лимит_руб=месячный_лимит,
-                        стоимость_день=стоимость_день,
-                        стоимость_ночь=стоимость_ночь,
-                        уведомлять_при_80=уведомлять_80,
+                        raise ValidationError("Введите числовые значения лимита и тарифов.") from err
+                    notify_80 = bool(body.get("notify_80", True))
+                    self.app_interface.configure_limit(
+                        user=user,
+                        monthly_budget_byn=monthly_limit,
+                        day_rate=day_rate,
+                        night_rate=night_rate,
+                        notify_at_80=notify_80,
                     )
-                    # По диаграмме 5.2 кнопка «Сохранить и закрыть» возвращает в ГлавноеОкно
-                    автомат = self.интерфейс.автомат_окон(token)
-                    if автомат.текущее_окно == СостояниеОкна.ОКНО_НАСТРОЕК:
-                        автомат.перейти(СостояниеОкна.ГЛАВНОЕ_ОКНО, роль_владелец=True)
+                    fsm = self.app_interface.window_fsm(token)
+                    if fsm.current_window == WindowState.SETTINGS_WINDOW:
+                        fsm.transition(WindowState.MAIN_WINDOW, is_owner=True)
                     return HTTPStatus.OK, {
-                        "state": self._сериализовать_состояние(пользователь, token),
+                        "state": self._serialize_state(user, token),
                     }
 
                 return HTTPStatus.NOT_FOUND, {"error": "Маршрут не найден."}
-            except ОшибкаДоступа as err:
+            except AccessDeniedError as err:
                 return HTTPStatus.FORBIDDEN, {"error": str(err)}
-            except ОшибкаДомена as err:
+            except DomainError as err:
                 return HTTPStatus.BAD_REQUEST, {"error": str(err)}
             except Exception:
                 return HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Внутренняя ошибка сервера."}
@@ -296,7 +295,7 @@ APP = EnergyHomeApp()
 
 
 class EnergyHomeRequestHandler(BaseHTTPRequestHandler):
-    """Обработчик HTTP-запросов: API (/api/*) и статика (/public/*)."""
+    """HTTP request handler: API (/api/*) and static files (/public/*)."""
 
     server_version = "EnergyHomePython/1.0"
 
@@ -340,7 +339,6 @@ class EnergyHomeRequestHandler(BaseHTTPRequestHandler):
         target = (PUBLIC_DIR / clean).resolve()
         public_root = PUBLIC_DIR.resolve()
         if not target.is_relative_to(public_root) or not target.is_file():
-            # SPA fallback на index.html только для не-API путей без расширения
             if "." not in Path(clean).name:
                 target = (public_root / "index.html").resolve()
             else:

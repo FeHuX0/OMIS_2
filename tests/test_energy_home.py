@@ -1,4 +1,4 @@
-"""Модульные тесты Python-реализации Energy Home (диаграммы 4.1, 4.2.1–4.2.3, 5.1, 5.2 и API)."""
+"""Unit and integration tests for Energy Home (Diagrams 4.1, 4.2.1–4.2.3, 5.1, 5.2, and HTTP API)."""
 
 from __future__ import annotations
 
@@ -7,229 +7,224 @@ from datetime import datetime
 
 from energy_home.domain import (
     LOCAL_TZ,
-    Аномалия,
-    ДомКвартира,
-    Комната,
-    ОшибкаДоступа,
-    Показание,
-    Пользователь,
-    Прибор,
-    Роль,
-    Событие,
-    Тариф,
-    УстройствоУчета,
+    AccessDeniedError,
+    Anomaly,
+    Appliance,
+    Event,
+    Home,
+    MeteringDevice,
+    Reading,
+    Role,
+    Room,
+    Tariff,
+    User,
 )
 from energy_home.extensions import (
-    АдаптерGoogleHome,
-    АдаптерHomeAssistant,
-    АдаптерЯндексАлиса,
-    ГолосовойАссистент,
-    МногоквартирныйДом,
-    МодульУправленияУстройствами,
-    ОбщаяЗона,
-    ПланировщикНагрузки,
-    ПодсистемаПравил,
-    Правило,
-    ПравилоРаспределения,
-    РейтингЭнергоэффективности,
-    Сценарий,
+    ApartmentBuilding,
+    CommonZone,
+    DeviceControlModule,
+    DistributionRule,
+    EnergyEfficiencyRating,
+    GoogleHomeAdapter,
+    HomeAssistantAdapter,
+    LoadScheduler,
+    Rule,
+    RuleSubsystem,
+    Scenario,
+    VoiceAssistant,
+    YandexAliceAdapter,
 )
-from energy_home.seed import DEMO_FAMILY_LOGIN, DEMO_OWNER_LOGIN, DEMO_PASSWORD, создать_систему
+from energy_home.seed import DEMO_FAMILY_LOGIN, DEMO_OWNER_LOGIN, DEMO_PASSWORD, create_system
 from energy_home.state_machine import (
-    АвтоматПереходовОкон,
-    АвтоматСостоянийПрибора,
-    СостояниеОкна,
-    СостояниеПрибора,
+    DeviceState,
+    DeviceStateMachine,
+    WindowState,
+    WindowTransitionFSM,
 )
 from server import EnergyHomeApp
 
 
 class TestBaseClassDiagram41(unittest.TestCase):
-    """Проверка соответствия 1:1 базовой диаграмме классов 4.1 (стр. 13)."""
+    """Verify 1:1 implementation of Base Class Diagram 4.1 (page 13)."""
 
     def test_domain_classes_and_methods(self) -> None:
-        тариф = Тариф(стоимостьДень=5.50, стоимостьНочь=2.10)
-        устройство = УстройствоУчета(тип="Счётчик", серийныйНомер="SN-100", тариф=тариф, текущая_мощность_вт=1000.0)
-        пок = устройство.считатьПоказание()
-        self.assertIsInstance(пок, Показание)
-        self.assertGreater(пок.значение, 0)
+        tariff = Tariff(day_rate=5.50, night_rate=2.10)
+        device = MeteringDevice(device_type="Счётчик", serial_number="SN-100", tariff=tariff, current_power_w=1000.0)
+        reading = device.read_measurement()
+        self.assertIsInstance(reading, Reading)
+        self.assertGreater(reading.value, 0)
 
-        прибор = Прибор(название="Холодильник", мощность=150.0, устройство_учета=устройство)
-        комната = Комната(название="Кухня", приборы=[прибор])
-        дом = ДомКвартира(адрес="Минск", комнаты=[комната])
-        self.assertAlmostEqual(дом.получитьОбщееПотребление(), пок.значение, places=2)
+        appliance = Appliance(name="Холодильник", power=150.0, metering_device=device)
+        room = Room(name="Кухня", appliances=[appliance])
+        home = Home(address="Минск", rooms=[room])
+        self.assertAlmostEqual(home.get_total_consumption(), reading.value, places=2)
 
-        пользователь = Пользователь(логин="owner@test.by", пароль="secret", роль=Роль.ВЛАДЕЛЕЦ, дом=дом)
-        self.assertTrue(пользователь.авторизоваться("secret"))
-        self.assertFalse(пользователь.авторизоваться("wrong"))
-        self.assertEqual(len(пользователь.события), 1)
-        self.assertIsInstance(пользователь.события[0], Событие)
+        user = User(login="owner@test.by", password="secret", role=Role.OWNER, home=home)
+        self.assertTrue(user.authenticate("secret"))
+        self.assertFalse(user.authenticate("wrong"))
+        self.assertEqual(len(user.events), 1)
+        self.assertIsInstance(user.events[0], Event)
 
     def test_subsystems_zero_arg_and_full_calls(self) -> None:
-        интерфейс = создать_систему()
-        # Вызовы 1:1 без аргументов по диаграмме 4.1
-        собранные = интерфейс.сбор.опроситьУстройства()
-        self.assertGreaterEqual(len(собранные), 1)
-        интерфейс.сбор.сохранитьПоказания()
+        app_interface = create_system()
+        # Zero-argument calls matching Diagram 4.1 signatures
+        collected = app_interface.collection.poll_devices()
+        self.assertGreaterEqual(len(collected), 1)
+        app_interface.collection.save_readings()
 
-        расход = интерфейс.анализ.рассчитатьРасход()
-        self.assertGreater(расход, 0)
-        аномалии = интерфейс.анализ.выявитьАномалии()
-        self.assertGreaterEqual(len(аномалии), 1)
+        consumption = app_interface.analysis.calculate_consumption()
+        self.assertGreater(consumption, 0)
+        anomalies = app_interface.analysis.detect_anomalies()
+        self.assertGreaterEqual(len(anomalies), 1)
 
-        интерфейс.уведомления.отправитьУведомление()
-        self.assertGreaterEqual(len(интерфейс.хранение.найти("уведомления")), 2)
+        app_interface.notifications.send_notification()
+        self.assertGreaterEqual(len(app_interface.storage.find("notifications")), 2)
 
-        отчет = интерфейс.отчетность.сформироватьОтчет()
-        график = интерфейс.отчетность.построитьГрафик()
-        self.assertEqual(отчет.график.метки, ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"])
-        self.assertEqual(график.значения, [16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0])
+        report = app_interface.reporting.generate_report()
+        chart = app_interface.reporting.build_chart()
+        self.assertEqual(report.chart.labels, ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"])
+        self.assertEqual(chart.values, [16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0])
 
-        данные = интерфейс.показатьПотребление()
-        self.assertIn("текущая_мощность_квт", данные)
-        настройки = интерфейс.настроитьЛимит(месячный_лимит_руб=6000.0, стоимость_день=5.80)
-        self.assertEqual(настройки["месячный_лимит_руб"], 6000.0)
-        self.assertEqual(настройки["стоимость_день"], 5.80)
+        metrics = app_interface.show_consumption()
+        self.assertIn("current_power_kw", metrics)
+        settings = app_interface.configure_limit(monthly_budget_byn=6000.0, day_rate=5.80)
+        self.assertEqual(settings["monthly_budget_byn"], 6000.0)
+        self.assertEqual(settings["day_rate"], 5.80)
 
     def test_rbac_owner_vs_family(self) -> None:
-        интерфейс = создать_систему()
-        _, владелец = интерфейс.доступ.войти(DEMO_OWNER_LOGIN, DEMO_PASSWORD)
-        _, член = интерфейс.доступ.войти(DEMO_FAMILY_LOGIN, DEMO_PASSWORD)
+        app_interface = create_system()
+        _, owner = app_interface.access_control.login(DEMO_OWNER_LOGIN, DEMO_PASSWORD)
+        _, family = app_interface.access_control.login(DEMO_FAMILY_LOGIN, DEMO_PASSWORD)
 
-        self.assertTrue(интерфейс.доступ.проверитьПрава(владелец, "настройка_тарифов_и_лимитов"))
-        self.assertFalse(интерфейс.доступ.проверитьПрава(член, "настройка_тарифов_и_лимитов"))
-        self.assertTrue(интерфейс.доступ.проверитьПрава(член, "просмотр_отчетов"))
+        self.assertTrue(app_interface.access_control.check_permissions(owner, "configure_tariffs_and_limits"))
+        self.assertFalse(app_interface.access_control.check_permissions(family, "configure_tariffs_and_limits"))
+        self.assertTrue(app_interface.access_control.check_permissions(family, "view_reports"))
 
-        with self.assertRaises(ОшибкаДоступа):
-            интерфейс.настроитьЛимит(пользователь=член, месячный_лимит_руб=1000.0)
+        with self.assertRaises(AccessDeniedError):
+            app_interface.configure_limit(user=family, monthly_budget_byn=1000.0)
 
 
 class TestStateMachines51And52(unittest.TestCase):
-    """Проверка диаграмм состояний 5.1 и 5.2 (стр. 16–17)."""
+    """Verify State Diagrams 5.1 and 5.2 (pages 16–17)."""
 
     def test_device_lifecycle_51(self) -> None:
-        fsm = АвтоматСостоянийПрибора()
-        self.assertEqual(fsm.внешнее_состояние, СостояниеПрибора.ВЫКЛЮЧЕН)
-        self.assertEqual(fsm.внутреннее_состояние, СостояниеПрибора.РЕЖИМ_ОБЕСТОЧИВАНИЯ)
+        fsm = DeviceStateMachine()
+        self.assertEqual(fsm.outer_state, DeviceState.OFF)
+        self.assertEqual(fsm.inner_state, DeviceState.POWER_OFF_MODE)
 
-        fsm.включить_прибор()
-        self.assertEqual(fsm.текущее_состояние, СостояниеПрибора.ОЖИДАНИЕ_АКТИВНОСТИ)
+        fsm.turn_on()
+        self.assertEqual(fsm.current_state, DeviceState.IDLE_WAITING)
 
-        fsm.сигнал_включения()
-        self.assertEqual(fsm.текущее_состояние, СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ)
+        fsm.start_operation()
+        self.assertEqual(fsm.current_state, DeviceState.NORMAL_OPERATION)
 
-        fsm.перейти_на_льготный_тариф()
-        self.assertEqual(fsm.текущее_состояние, СостояниеПрибора.ГИБКАЯ_НАГРУЗКА)
+        fsm.switch_to_off_peak()
+        self.assertEqual(fsm.current_state, DeviceState.FLEXIBLE_LOAD)
 
-        fsm.завершить_цикл_гибкой_нагрузки()
-        self.assertEqual(fsm.текущее_состояние, СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ)
+        fsm.finish_flexible_cycle()
+        self.assertEqual(fsm.current_state, DeviceState.NORMAL_OPERATION)
 
-        уведомлено = False
+        notified = False
 
-        def cb() -> None:
-            nonlocal уведомлено
-            уведомлено = True
+        def on_notify() -> None:
+            nonlocal notified
+            notified = True
 
-        fsm.событие_аномалии(превышен_критический_порог=True, уведомить=cb)
-        self.assertTrue(уведомлено)
-        self.assertEqual(fsm.внешнее_состояние, СостояниеПрибора.АВАРИЙНЫЙ_РЕЖИМ)
-        self.assertEqual(fsm.внутреннее_состояние, СостояниеПрибора.ОТКЛЮЧЕНИЕ_ЛИНИИ)
+        fsm.trigger_anomaly(critical_threshold_exceeded=True, notify_callback=on_notify)
+        self.assertTrue(notified)
+        self.assertEqual(fsm.outer_state, DeviceState.EMERGENCY_MODE)
+        self.assertEqual(fsm.inner_state, DeviceState.LINE_DISCONNECTED)
 
-        # Прямое включение из аварии запрещено — только сброс -> Выключен
         with self.assertRaises(ValueError):
-            fsm.включить_прибор()
+            fsm.turn_on()
 
-        fsm.устранение_аварии()
-        self.assertEqual(fsm.внешнее_состояние, СостояниеПрибора.ВЫКЛЮЧЕН)
+        fsm.clear_fault()
+        self.assertEqual(fsm.outer_state, DeviceState.OFF)
 
     def test_window_transitions_52(self) -> None:
-        nav = АвтоматПереходовОкон()
-        self.assertEqual(nav.текущее_окно, СостояниеОкна.ОКНО_АВТОРИЗАЦИИ)
+        nav = WindowTransitionFSM()
+        self.assertEqual(nav.current_window, WindowState.AUTH_WINDOW)
 
-        nav.перейти(СостояниеОкна.ГЛАВНОЕ_ОКНО)
+        nav.transition(WindowState.MAIN_WINDOW)
         with self.assertRaises(PermissionError):
-            nav.перейти(СостояниеОкна.ОКНО_НАСТРОЕК, роль_владелец=False)
+            nav.transition(WindowState.SETTINGS_WINDOW, is_owner=False)
 
-        nav.перейти(СостояниеОкна.ОКНО_УСТРОЙСТВ)
-        # Напрямую из ОкноУстройств в ОкноОтчетов нельзя (только через ГлавноеОкно)
+        nav.transition(WindowState.DEVICES_WINDOW)
         with self.assertRaises(ValueError):
-            nav.перейти(СостояниеОкна.ОКНО_ОТЧЕТОВ)
+            nav.transition(WindowState.REPORTS_WINDOW)
 
-        nav.перейти(СостояниеОкна.ГЛАВНОЕ_ОКНО)
-        nav.перейти(СостояниеОкна.ОКНО_НАСТРОЕК, роль_владелец=True)
-        nav.перейти(СостояниеОкна.ГЛАВНОЕ_ОКНО)
-        nav.перейти(СостояниеОкна.ОКНО_АВТОРИЗАЦИИ)
+        nav.transition(WindowState.MAIN_WINDOW)
+        nav.transition(WindowState.SETTINGS_WINDOW, is_owner=True)
+        nav.transition(WindowState.MAIN_WINDOW)
+        nav.transition(WindowState.AUTH_WINDOW)
 
 
 class TestExtensions42(unittest.TestCase):
-    """Проверка 3 направлений развития 4.2.1, 4.2.2, 4.2.3 (стр. 14–15)."""
+    """Verify the 3 extension diagrams 4.2.1, 4.2.2, 4.2.3 (pages 14–15)."""
 
     def test_voice_and_smart_home_421(self) -> None:
-        for adapter in (АдаптерЯндексАлиса(), АдаптерGoogleHome(), АдаптерHomeAssistant()):
-            adapter.передатьКоманду("Кондиционер", "off")
-            ev = adapter.получитьСобытия()
-            self.assertIsInstance(ev, Событие)
-        ассистент = ГолосовойАссистент()
-        cmd = ассистент.распознатьКоманду("Текущее потребление")
-        self.assertEqual(cmd.намерение, "потребление")
-        ассистент.озвучитьОтвет("3.4 кВт")
-        self.assertEqual(ассистент.последний_ответ, "3.4 кВт")
+        for adapter in (YandexAliceAdapter(), GoogleHomeAdapter(), HomeAssistantAdapter()):
+            adapter.send_command("Кондиционер", "off")
+            ev = adapter.get_events()
+            self.assertIsInstance(ev, Event)
+        assistant = VoiceAssistant()
+        cmd = assistant.recognize_command("Текущее потребление")
+        self.assertEqual(cmd.intent, "consumption")
+        assistant.speak_response("3.4 кВт")
+        self.assertEqual(assistant.last_response, "3.4 кВт")
 
     def test_apartment_building_422(self) -> None:
-        дом = МногоквартирныйДом(
-            адрес="пр. Независимости, 10",
-            общие_зоны=[ОбщаяЗона("Подъезд", 35.0), ОбщаяЗона("Лифт", 45.0), ОбщаяЗона("Парковка", 20.0)],
-            квартиры=[ДомКвартира("кв. 1", базовое_потребление_сегодня_квтч=100.0)],
-            правило_распределения=ПравилоРаспределения("по_площади"),
+        building = ApartmentBuilding(
+            address="пр. Независимости, 10",
+            common_zones=[CommonZone("Подъезд", 35.0), CommonZone("Лифт", 45.0), CommonZone("Парковка", 20.0)],
+            apartments=[Home("кв. 1", base_daily_consumption_kwh=100.0)],
+            distribution_rule=DistributionRule("by_area"),
         )
-        self.assertEqual(дом.получитьОбщийРасход(), 200.0)
-        доли = дом.правило_распределения.распределить(100.0, {"кв. 1": 60.0, "кв. 2": 40.0})
-        self.assertEqual(доли["кв. 1"], 60.0)
-        self.assertEqual(доли["кв. 2"], 40.0)
-        рейтинг = РейтингЭнергоэффективности(расход_квартиры=80.0, средний_расход_по_дому=100.0)
-        self.assertEqual(рейтинг.сравнитьСоСредним(), 20.0)
-        self.assertEqual(рейтинг.балл, 70.0)
+        self.assertEqual(building.get_total_consumption(), 200.0)
+        shares = building.distribution_rule.distribute(100.0, {"кв. 1": 60.0, "кв. 2": 40.0})
+        self.assertEqual(shares["кв. 1"], 60.0)
+        self.assertEqual(shares["кв. 2"], 40.0)
+        rating = EnergyEfficiencyRating(apartment_consumption=80.0, building_average=100.0)
+        self.assertEqual(rating.compare_with_average(), 20.0)
+        self.assertEqual(rating.score, 70.0)
 
     def test_smart_control_423(self) -> None:
-        прибор = Прибор(название="Стиральная машина", мощность=2000.0, гибкая_нагрузка=True)
-        модуль = МодульУправленияУстройствами()
-        модуль.включить(прибор)
-        self.assertEqual(прибор.автомат.текущее_состояние, СостояниеПрибора.РАБОТА_В_ШТАТНОМ_РЕЖИМЕ)
+        appliance = Appliance(name="Стиральная машина", power=2000.0, flexible_load=True)
+        control = DeviceControlModule()
+        control.turn_on(appliance)
+        self.assertEqual(appliance.state_machine.current_state, DeviceState.NORMAL_OPERATION)
 
-        планировщик = ПланировщикНагрузки(модуль)
-        планировщик.перенестиНагрузку(прибор, "23:00")
-        self.assertEqual(прибор.автомат.текущее_состояние, СостояниеПрибора.ГИБКАЯ_НАГРУЗКА)
+        scheduler = LoadScheduler(control)
+        scheduler.reschedule_load(appliance, "23:00")
+        self.assertEqual(appliance.state_machine.current_state, DeviceState.FLEXIBLE_LOAD)
 
-        сценарий = Сценарий(имя="Отпуск", приборы=[прибор], модуль_управления=модуль)
-        сценарий.выполнить()
-        self.assertEqual(прибор.автомат.внешнее_состояние, СостояниеПрибора.ВЫКЛЮЧЕН)
+        scenario = Scenario(name="Отпуск", appliances=[appliance], control_module=control)
+        scenario.execute()
+        self.assertEqual(appliance.state_machine.outer_state, DeviceState.OFF)
 
-        подсистема = ПодсистемаПравил(правила=[Правило(условие="скачок", действие="отключить")])
-        ан = Аномалия(тип="Скачок мощности", величина=23.0, время=datetime(2027, 3, 20, 2, 34, tzinfo=LOCAL_TZ))
-        self.assertTrue(подсистема.проверитьПравило(ан))
+        rule_sub = RuleSubsystem(rules=[Rule(condition="скачок", action="отключить")])
+        anomaly = Anomaly(anomaly_type="Скачок мощности", magnitude=23.0, timestamp=datetime(2027, 3, 20, 2, 34, tzinfo=LOCAL_TZ))
+        self.assertTrue(rule_sub.check_rule(anomaly))
 
 
 class TestHttpApiFlow(unittest.TestCase):
-    """Интеграционный тест REST API контроллера EnergyHomeApp."""
+    """Integration test for EnergyHomeApp HTTP API controller."""
 
     def test_full_api_journey(self) -> None:
         app = EnergyHomeApp()
 
-        # Неверный пароль
         status, err = app.handle_api("POST", "/api/login", {}, {"login": DEMO_OWNER_LOGIN, "password": "bad"}, None)
         self.assertEqual(status, 403)
         self.assertIn("error", err)
 
-        # Вход владельца
         status, res = app.handle_api(
             "POST", "/api/login", {}, {"login": DEMO_OWNER_LOGIN, "password": DEMO_PASSWORD}, None
         )
         self.assertEqual(status, 200)
         token = res["token"]
-        self.assertEqual(res["state"]["главное"]["текущая_мощность_квт"], 3.4)
-        self.assertEqual(res["state"]["главное"]["расход_за_сегодня_квтч"], 102.5)
+        self.assertEqual(res["state"]["main"]["current_power_kw"], 3.4)
+        self.assertEqual(res["state"]["main"]["daily_consumption_kwh"], 102.5)
 
-        # Добавление помещения и устройства
         status, r_res = app.handle_api("POST", "/api/rooms", {}, {"name": "Прихожая"}, token)
         self.assertEqual(status, 200)
         new_room_id = r_res["id"]
@@ -244,8 +239,7 @@ class TestHttpApiFlow(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertGreater(d_res["id"], 0)
 
-        # Переход в настройки и сохранение
-        status, _ = app.handle_api("POST", "/api/navigate", {}, {"target": "ОкноНастроек"}, token)
+        status, _ = app.handle_api("POST", "/api/navigate", {}, {"target": "settings"}, token)
         self.assertEqual(status, 200)
         status, s_res = app.handle_api(
             "POST",
@@ -255,16 +249,15 @@ class TestHttpApiFlow(unittest.TestCase):
             token,
         )
         self.assertEqual(status, 200)
-        self.assertEqual(s_res["state"]["текущее_окно"], "ГлавноеОкно")
-        self.assertEqual(s_res["state"]["настройки"]["месячный_лимит_руб"], 4500.0)
+        self.assertEqual(s_res["state"]["current_window"], "main")
+        self.assertEqual(s_res["state"]["settings"]["monthly_budget_byn"], 4500.0)
 
-        # Проверка RBAC для члена семьи
         status, fam_res = app.handle_api(
             "POST", "/api/login", {}, {"login": DEMO_FAMILY_LOGIN, "password": DEMO_PASSWORD}, None
         )
         self.assertEqual(status, 200)
         fam_token = fam_res["token"]
-        status, denied = app.handle_api("POST", "/api/navigate", {}, {"target": "ОкноНастроек"}, fam_token)
+        status, denied = app.handle_api("POST", "/api/navigate", {}, {"target": "settings"}, fam_token)
         self.assertEqual(status, 403)
         self.assertIn("error", denied)
 

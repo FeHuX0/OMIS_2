@@ -1,4 +1,4 @@
-"""Инициализация демонстрационного состояния 1:1 по макетам 5.3 (стр. 18–20) отчёта 1laba_full.pdf."""
+"""Seed initial demo state 1:1 with Mockups 5.3 (pages 18–20) of 1laba_full_fc613401.pdf."""
 
 from __future__ import annotations
 
@@ -6,27 +6,27 @@ from datetime import datetime
 
 from energy_home.domain import (
     LOCAL_TZ,
-    Аномалия,
-    ДомКвартира,
-    Комната,
-    Лимит,
-    Пользователь,
-    Прибор,
-    Роль,
-    Событие,
-    Тариф,
-    Уведомление,
-    УстройствоУчета,
-    хешировать_пароль,
+    Anomaly,
+    Appliance,
+    Event,
+    Home,
+    Limit,
+    MeteringDevice,
+    Notification,
+    Role,
+    Room,
+    Tariff,
+    User,
+    hash_password,
 )
 from energy_home.subsystems import (
-    ИнтерфейсПриложения,
-    ПодсистемаАнализа,
-    ПодсистемаОтчетности,
-    ПодсистемаСбораДанных,
-    ПодсистемаУведомлений,
-    ПодсистемаУправленияДоступом,
-    ПодсистемаХранения,
+    AccessControlSubsystem,
+    AnalysisSubsystem,
+    ApplicationInterface,
+    DataCollectionSubsystem,
+    NotificationSubsystem,
+    ReportingSubsystem,
+    StorageSubsystem,
 )
 
 DEMO_OWNER_LOGIN = "user@example.com"
@@ -34,215 +34,207 @@ DEMO_FAMILY_LOGIN = "family@example.com"
 DEMO_PASSWORD = "password123"
 
 
-def создать_систему() -> ИнтерфейсПриложения:
-    """Собрать все подсистемы диаграммы 4.1 и заполнить начальными данными из макетов 5.3."""
-    хранение = ПодсистемаХранения()
-    доступ = ПодсистемаУправленияДоступом(хранение)
-    сбор = ПодсистемаСбораДанных(хранение)
-    анализ = ПодсистемаАнализа(хранение)
-    уведомления = ПодсистемаУведомлений(хранение, анализ)
-    отчетность = ПодсистемаОтчетности(хранение, анализ)
-    интерфейс = ИнтерфейсПриложения(
-        хранение=хранение,
-        сбор=сбор,
-        анализ=анализ,
-        уведомления=уведомления,
-        отчетность=отчетность,
-        доступ=доступ,
+def create_system() -> ApplicationInterface:
+    """Assemble all 7 subsystems from Diagram 4.1 and seed mockup data from Section 5.3."""
+    storage = StorageSubsystem()
+    access_control = AccessControlSubsystem(storage)
+    collection = DataCollectionSubsystem(storage)
+    analysis = AnalysisSubsystem(storage)
+    notifications = NotificationSubsystem(storage, analysis)
+    reporting = ReportingSubsystem(storage, analysis)
+    app_interface = ApplicationInterface(
+        storage=storage,
+        collection=collection,
+        analysis=analysis,
+        notifications=notifications,
+        reporting=reporting,
+        access_control=access_control,
     )
 
-    # Тариф и лимит точно по макету 5 «Окно настроек» (стр. 20)
-    тариф = Тариф(стоимостьДень=5.50, стоимостьНочь=2.10, начало_дня=7, начало_ночи=23)
-    лимит = Лимит(
-        месячный_лимит_руб=5000.0,
-        дневной_лимит_квтч=80.0,
-        уведомлять_при_80=True,
-        период="месяц",
+    # Tariff and limits matching Mockup 5 "Settings" (page 20)
+    tariff = Tariff(day_rate=5.50, night_rate=2.10, day_start=7, night_start=23)
+    limit = Limit(
+        monthly_budget_byn=5000.0,
+        daily_limit_kwh=80.0,
+        notify_at_80=True,
+        period="month",
     )
-    хранение.сохранить(тариф)
-    хранение.сохранить(лимит)
+    storage.save(tariff)
+    storage.save(limit)
 
-    # Помещения и устройства точно по макету 3 «Окно устройств» (стр. 19)
-    # Кухня (раскрыта): Умный счётчик (активно), Холодильник (потребление: 150 Вт)
-    кухня = Комната(название="Кухня", id=хранение.следующий_id_комнаты(), свернута_по_умолчанию=False)
+    # Rooms and appliances matching Mockup 3 "Devices" (page 19)
+    kitchen = Room(name="Кухня", id=storage.next_room_id(), collapsed_by_default=False)
 
-    умный_счетчик = Прибор(
-        название="Умный счётчик",
-        мощность=0.0,
-        устройство_учета=УстройствоУчета(
-            тип="Счётчик",
-            серийныйНомер="MTR-001",
-            тариф=тариф,
-            текущая_мощность_вт=0.0,
-            активно=True,
+    smart_meter = Appliance(
+        name="Умный счётчик",
+        power=0.0,
+        metering_device=MeteringDevice(
+            device_type="Счётчик",
+            serial_number="MTR-001",
+            tariff=tariff,
+            current_power_w=0.0,
+            active=True,
         ),
-        критическая_мощность=10000.0,
-        критически_важный=True,
-        отображаемый_статус="активно",
-        id=хранение.следующий_id_прибора(),
+        critical_power_w=10000.0,
+        essential=True,
+        display_status="активно",
+        id=storage.next_appliance_id(),
     )
-    умный_счетчик.автомат.включить_прибор()
-    умный_счетчик.автомат.сигнал_включения()
+    smart_meter.state_machine.turn_on()
+    smart_meter.state_machine.start_operation()
 
-    холодильник = Прибор(
-        название="Холодильник",
-        мощность=150.0,
-        устройство_учета=УстройствоУчета(
-            тип="Умная розетка",
-            серийныйНомер="SCK-KITCHEN-01",
-            тариф=тариф,
-            текущая_мощность_вт=150.0,
-            активно=True,
+    fridge = Appliance(
+        name="Холодильник",
+        power=150.0,
+        metering_device=MeteringDevice(
+            device_type="Умная розетка",
+            serial_number="SCK-KITCHEN-01",
+            tariff=tariff,
+            current_power_w=150.0,
+            active=True,
         ),
-        критическая_мощность=900.0,
-        критически_важный=True,
-        отображаемый_статус="потребление: 150 Вт",
-        id=хранение.следующий_id_прибора(),
+        critical_power_w=900.0,
+        essential=True,
+        display_status="потребление: 150 Вт",
+        id=storage.next_appliance_id(),
     )
-    холодильник.автомат.включить_прибор()
-    холодильник.автомат.сигнал_включения()
-    кухня.добавить_прибор(умный_счетчик)
-    кухня.добавить_прибор(холодильник)
+    fridge.state_machine.turn_on()
+    fridge.state_machine.start_operation()
+    kitchen.add_appliance(smart_meter)
+    kitchen.add_appliance(fridge)
 
-    # Спальня (раскрыта): Розетка 1 (не активно)
-    спальня = Комната(название="Спальня", id=хранение.следующий_id_комнаты(), свернута_по_умолчанию=False)
-    розетка_1 = Прибор(
-        название="Розетка 1",
-        мощность=600.0,
-        устройство_учета=УстройствоУчета(
-            тип="Умная розетка",
-            серийныйНомер="SCK-BED-01",
-            тариф=тариф,
-            текущая_мощность_вт=0.0,
-            активно=False,
+    bedroom = Room(name="Спальня", id=storage.next_room_id(), collapsed_by_default=False)
+    socket_1 = Appliance(
+        name="Розетка 1",
+        power=600.0,
+        metering_device=MeteringDevice(
+            device_type="Умная розетка",
+            serial_number="SCK-BED-01",
+            tariff=tariff,
+            current_power_w=0.0,
+            active=False,
         ),
-        критическая_мощность=2500.0,
-        отображаемый_статус="не активно",
-        id=хранение.следующий_id_прибора(),
+        critical_power_w=2500.0,
+        display_status="не активно",
+        id=storage.next_appliance_id(),
     )
-    спальня.добавить_прибор(розетка_1)
+    bedroom.add_appliance(socket_1)
 
-    # Зал (раскрыт): Кондиционер (авторежим)
-    зал = Комната(название="Зал", id=хранение.следующий_id_комнаты(), свернута_по_умолчанию=False)
-    кондиционер = Прибор(
-        название="Кондиционер",
-        мощность=1250.0,
-        устройство_учета=УстройствоУчета(
-            тип="Датчик",
-            серийныйНомер="SNS-HALL-01",
-            тариф=тариф,
-            текущая_мощность_вт=1250.0,
-            активно=True,
+    hall = Room(name="Зал", id=storage.next_room_id(), collapsed_by_default=False)
+    air_conditioner = Appliance(
+        name="Кондиционер",
+        power=1250.0,
+        metering_device=MeteringDevice(
+            device_type="Датчик",
+            serial_number="SNS-HALL-01",
+            tariff=tariff,
+            current_power_w=1250.0,
+            active=True,
         ),
-        критическая_мощность=3500.0,
-        гибкая_нагрузка=True,
-        отображаемый_статус="авторежим",
-        id=хранение.следующий_id_прибора(),
+        critical_power_w=3500.0,
+        flexible_load=True,
+        display_status="авторежим",
+        id=storage.next_appliance_id(),
     )
-    кондиционер.автомат.включить_прибор()
-    кондиционер.автомат.сигнал_включения()
-    кондиционер.автомат.перейти_на_льготный_тариф()
-    зал.добавить_прибор(кондиционер)
+    air_conditioner.state_machine.turn_on()
+    air_conditioner.state_machine.start_operation()
+    air_conditioner.state_machine.switch_to_off_peak()
+    hall.add_appliance(air_conditioner)
 
-    # Санузел (свернут по умолчанию «+» как на макете стр. 19)
-    санузел = Комната(название="Санузел", id=хранение.следующий_id_комнаты(), свернута_по_умолчанию=True)
-    стиральная = Прибор(
-        название="Стиральная машина",
-        мощность=2000.0,
-        устройство_учета=УстройствоУчета(
-            тип="Умная розетка",
-            серийныйНомер="SCK-BATH-01",
-            тариф=тариф,
-            текущая_мощность_вт=0.0,
-            активно=False,
+    bathroom = Room(name="Санузел", id=storage.next_room_id(), collapsed_by_default=True)
+    washer = Appliance(
+        name="Стиральная машина",
+        power=2000.0,
+        metering_device=MeteringDevice(
+            device_type="Умная розетка",
+            serial_number="SCK-BATH-01",
+            tariff=tariff,
+            current_power_w=0.0,
+            active=False,
         ),
-        критическая_мощность=4000.0,
-        гибкая_нагрузка=True,
-        отображаемый_статус="не активно",
-        id=хранение.следующий_id_прибора(),
+        critical_power_w=4000.0,
+        flexible_load=True,
+        display_status="не активно",
+        id=storage.next_appliance_id(),
     )
-    санузел.добавить_прибор(стиральная)
+    bathroom.add_appliance(washer)
 
-    # ДомКвартира: базовая нагрузка подобрана так, чтобы при старте Главное окно показывало
-    # Текущая мощность: 3.4 кВт и Расход за сегодня: 102.5 кВт/ч (макет 2, стр. 18)
-    дом = ДомКвартира(
-        адрес="г. Минск, ул. Энергетиков, д. 12, кв. 45",
-        комнаты=[кухня, спальня, зал, санузел],
-        тип="квартира",
-        базовое_потребление_сегодня_квтч=102.5,
-        базовая_мощность_квт=2.0,  # + 0.15 кВт (Холодильник) + 1.25 кВт (Кондиционер) = 3.4 кВт
+    # Home base load yields 3.4 kW current power and 102.5 kWh today (Mockup 2, page 18)
+    home = Home(
+        address="г. Минск, ул. Энергетиков, д. 12, кв. 45",
+        rooms=[kitchen, bedroom, hall, bathroom],
+        home_type="apartment",
+        base_daily_consumption_kwh=102.5,
+        base_power_kw=2.0,  # + 0.15 kW (Fridge) + 1.25 kW (AC) = 3.4 kW
     )
-    хранение.сохранить(дом)
+    storage.save(home)
 
-    # Пользователи: Владелец (user@example.com — как на макете 1, стр. 18) и Член семьи
-    владелец = Пользователь(
-        логин=DEMO_OWNER_LOGIN,
-        пароль=хешировать_пароль(DEMO_PASSWORD),
-        роль=Роль.ВЛАДЕЛЕЦ,
-        дом=дом,
-        имя="Владелец дома",
+    owner = User(
+        login=DEMO_OWNER_LOGIN,
+        password=hash_password(DEMO_PASSWORD),
+        role=Role.OWNER,
+        home=home,
+        name="Владелец дома",
     )
-    член_семьи = Пользователь(
-        логин=DEMO_FAMILY_LOGIN,
-        пароль=хешировать_пароль(DEMO_PASSWORD),
-        роль=Роль.ЧЛЕН_СЕМЬИ,
-        дом=дом,
-        имя="Член семьи",
+    family_member = User(
+        login=DEMO_FAMILY_LOGIN,
+        password=hash_password(DEMO_PASSWORD),
+        role=Role.FAMILY_MEMBER,
+        home=home,
+        name="Член семьи",
     )
-    хранение.сохранить(владелец)
-    хранение.сохранить(член_семьи)
+    storage.save(owner)
+    storage.save(family_member)
 
-    # Серии графиков для Окна отчётов (макет 4, стр. 19 — Неделя 1:1 + День и Месяц)
-    хранение._серии_по_периодам = {
+    # Chart series for Reports window (Mockup 4, page 19)
+    storage._period_series = {
         "week": {
-            "заголовок": "График расхода по дням (кВт·ч)",
-            "подзаголовок": "Сегодня: 22.03.2027 - Пятница",
-            "метки": ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
-            "значения": [16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0],
-            "шаг_оси_y": 5.0,
-            "максимум_оси_y": 25.0,
+            "title": "График расхода по дням (кВт·ч)",
+            "subtitle": "Сегодня: 22.03.2027 - Пятница",
+            "labels": ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+            "values": [16.5, 13.3, 23.3, 15.1, 7.8, 0.0, 0.0],
+            "y_step": 5.0,
+            "y_max": 25.0,
         },
         "day": {
-            "заголовок": "График расхода по часам (кВт·ч)",
-            "подзаголовок": "Сегодня: 22.03.2027 - Пятница",
-            "метки": ["00", "04", "08", "12", "16", "20", "23"],
-            "значения": [1.2, 0.9, 2.4, 3.1, 2.8, 4.2, 1.9],
-            "шаг_оси_y": 1.0,
-            "максимум_оси_y": 5.0,
+            "title": "График расхода по часам (кВт·ч)",
+            "subtitle": "Сегодня: 22.03.2027 - Пятница",
+            "labels": ["00", "04", "08", "12", "16", "20", "23"],
+            "values": [1.2, 0.9, 2.4, 3.1, 2.8, 4.2, 1.9],
+            "y_step": 1.0,
+            "y_max": 5.0,
         },
         "month": {
-            "заголовок": "График расхода по неделям месяца (кВт·ч)",
-            "подзаголовок": "Март 2027 · Сегодня: 22.03.2027 - Пятница",
-            "метки": ["Нед 1", "Нед 2", "Нед 3", "Нед 4"],
-            "значения": [94.2, 108.6, 112.4, 76.0],
-            "шаг_оси_y": 25.0,
-            "максимум_оси_y": 125.0,
+            "title": "График расхода по неделям месяца (кВт·ч)",
+            "subtitle": "Март 2027 · Сегодня: 22.03.2027 - Пятница",
+            "labels": ["Нед 1", "Нед 2", "Нед 3", "Нед 4"],
+            "values": [94.2, 108.6, 112.4, 76.0],
+            "y_step": 25.0,
+            "y_max": 125.0,
         },
     }
 
-    # Аномалия точно по макету 4 «Окно отчётов» (стр. 19)
-    хранение.сохранить(
-        Аномалия(
-            тип="Скачок мощности",
-            величина=23.0,
-            время=datetime(2027, 3, 20, 2, 34, tzinfo=LOCAL_TZ),
-            место="линии кухни",
-            пользовательская_подпись_времени="20.03.2027 (среда) 02:34",
+    storage.save(
+        Anomaly(
+            anomaly_type="Скачок мощности",
+            magnitude=23.0,
+            timestamp=datetime(2027, 3, 20, 2, 34, tzinfo=LOCAL_TZ),
+            location="линии кухни",
+            custom_time_label="20.03.2027 (среда) 02:34",
         )
     )
-
-    хранение.сохранить(
-        Уведомление(
-            текст="Внимание! Превышен лимит дневного потребления энергии.",
-            тип="limit",
-            дата_отправки=datetime(2027, 3, 22, 12, 0, tzinfo=LOCAL_TZ),
+    storage.save(
+        Notification(
+            message="Внимание! Превышен лимит дневного потребления энергии.",
+            notification_type="limit",
+            sent_at=datetime(2027, 3, 22, 12, 0, tzinfo=LOCAL_TZ),
         )
     )
-    хранение.сохранить(
-        Событие(
-            тип="инициализация_системы",
-            дата=datetime.now(LOCAL_TZ),
-            описание="Загружены начальные данные 1:1 по отчёту 1laba_full.pdf",
+    storage.save(
+        Event(
+            event_type="system_initialized",
+            timestamp=datetime.now(LOCAL_TZ),
+            description="Загружены начальные данные 1:1 по отчёту 1laba_full.pdf",
         )
     )
-    return интерфейс
+    return app_interface
