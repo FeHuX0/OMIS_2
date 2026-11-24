@@ -1,0 +1,552 @@
+/* Монохромные макеты 5 окон 1:1 по разделу 5.3 (стр. 18–20) отчёта 1laba_full.pdf */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: #efefef;
+  color: #111111;
+  font-family: Arial, Helvetica, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.viewport-stage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 12px;
+}
+
+.mobile-shell {
+  width: 100%;
+  max-width: 360px;
+  background: #ffffff;
+  border: 1px solid #d4d4d4;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.screen {
+  width: 100%;
+  background: #ffffff;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Шапка окон 2–5 (серая полоса + чёткая чёрная линия снизу) */
+.screen-banner {
+  background: #d9d9d9;
+  border-bottom: 2.5px solid #000000;
+  padding: 16px 18px;
+  text-align: center;
+}
+
+.screen-banner h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.28;
+  color: #000000;
+}
+
+/* 1: Окно Авторизации (стр. 18) */
+.screen-login {
+  padding: 34px 36px 38px;
+}
+
+.login-heading {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-group {
+  margin-bottom: 18px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 400;
+  color: #111111;
+}
+
+.wire-input,
+.wire-select {
+  width: 100%;
+  height: 40px;
+  padding: 6px 10px;
+  background: #e6e6e6;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #111111;
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.wire-input:focus,
+.wire-select:focus {
+  background: #f0f0f0;
+  box-shadow: inset 0 0 0 1px #000000;
+}
+
+.login-actions {
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Кнопки (три тона серого как в отчёте 5.3) */
+.btn {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: center;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(0.93);
+}
+
+.btn:active:not(:disabled) {
+  filter: brightness(0.87);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-dark {
+  background: #767676;
+  border: 1.5px solid #2b2b2b;
+  color: #ffffff;
+}
+
+.btn-medium {
+  background: #a6a6a6;
+  border: 1.5px solid #333333;
+  color: #ffffff;
+}
+
+.btn-outline {
+  background: #ffffff;
+  border: 1.5px solid #222222;
+  color: #111111;
+}
+
+/* 2: Главное окно (стр. 18) */
+.section-block {
+  padding: 18px 28px;
+  border-bottom: 2.5px solid #000000;
+}
+
+.metrics-block {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.metric-line {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #111111;
+}
+
+.metric-line:last-child {
+  margin-bottom: 0;
+}
+
+.alert-block {
+  font-size: 15px;
+  line-height: 1.38;
+  color: #111111;
+}
+
+.section-actions {
+  padding: 24px 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-footer {
+  padding: 12px 28px 26px;
+  text-align: center;
+}
+
+.profile-line {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #111111;
+}
+
+/* Разделитель */
+.thick-divider {
+  margin: 0;
+  border: 0;
+  border-top: 2.5px solid #000000;
+}
+
+/* 3: Окно устройств (стр. 19) */
+.devices-content {
+  padding: 14px 22px 16px;
+}
+
+.block-heading {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.rooms-tree {
+  border: 1.5px solid #000000;
+  background: #ffffff;
+}
+
+.room-node {
+  border-bottom: 1.5px solid #000000;
+}
+
+.room-node:last-child {
+  border-bottom: none;
+}
+
+.room-header-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #b8b8b8;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #000000;
+  cursor: pointer;
+}
+
+.room-header-btn:hover {
+  background: #aeaeae;
+}
+
+.tree-toggle-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #d2d2d2;
+  border: 1.5px solid #333333;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: #111111;
+  flex-shrink: 0;
+}
+
+.room-devices-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 12px 8px 18px;
+  background: #ffffff;
+  border-top: 1.5px solid #000000;
+}
+
+.room-devices-list li {
+  margin: 3px 0;
+}
+
+.device-item-btn {
+  width: 100%;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  color: #111111;
+  cursor: pointer;
+}
+
+.device-item-btn:hover {
+  text-decoration: underline;
+}
+
+.device-empty-note {
+  font-size: 12.5px;
+  color: #555555;
+  padding: 2px 0;
+}
+
+.devices-actions {
+  padding: 18px 28px 22px;
+  gap: 12px;
+}
+
+.btn-back-gap {
+  margin-top: 2px;
+}
+
+/* 4: Окно отчётов (стр. 19) */
+.reports-content {
+  padding: 14px 22px 10px;
+}
+
+.period-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0 14px;
+}
+
+.wire-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #111111;
+  user-select: none;
+}
+
+.wire-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.wire-check-box {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.wire-checkbox:checked + .wire-check-box {
+  background-color: #e6e6e6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5L6.5 12L13 4' fill='none' stroke='%23000000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 13px 13px;
+}
+
+.wire-checkbox:focus-visible + .wire-check-box {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
+}
+
+.chart-heading {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.chart-subtitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #111111;
+}
+
+.chart-wrap {
+  width: 100%;
+  margin: 0;
+}
+
+.anomalies-block {
+  padding: 12px 22px 14px;
+  font-size: 13.5px;
+  line-height: 1.42;
+}
+
+.anomalies-title {
+  margin: 0 0 4px;
+  color: #111111;
+}
+
+.anomalies-list p {
+  margin: 0 0 4px;
+  white-space: pre-line;
+}
+
+.anomalies-list p:last-child {
+  margin-bottom: 0;
+}
+
+.reports-actions {
+  padding: 16px 28px 22px;
+}
+
+/* 5: Окно настроек (стр. 20) */
+.settings-limit-block {
+  padding: 18px 28px 20px;
+}
+
+.settings-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 15px;
+  line-height: 1.32;
+  color: #111111;
+}
+
+.settings-tariffs-block {
+  padding: 16px 28px 20px;
+}
+
+.tariff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.tariff-label {
+  font-size: 14.5px;
+  line-height: 1.3;
+  color: #111111;
+}
+
+.tariff-input {
+  width: 108px;
+  height: 36px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.settings-notify-block {
+  padding: 16px 28px;
+}
+
+.notify-check-row {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.notify-label-text {
+  font-size: 14.5px;
+  line-height: 1.32;
+}
+
+.settings-actions {
+  padding: 20px 28px 26px;
+  gap: 12px;
+}
+
+/* Ошибки */
+.form-error {
+  font-size: 13px;
+  color: #8b1e1e;
+  margin-top: 8px;
+}
+
+.form-error:empty {
+  display: none;
+  margin: 0;
+}
+
+.centered-error {
+  text-align: center;
+  padding: 0 20px;
+}
+
+/* Модальное окно (в том же монохромном стиле) */
+.wire-modal {
+  width: min(340px, 92vw);
+  padding: 0;
+  border: 2px solid #000000;
+  background: #ffffff;
+  color: #111111;
+}
+
+.wire-modal::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.wire-modal-header {
+  background: #d9d9d9;
+  border-bottom: 2px solid #000000;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.wire-modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wire-modal-body {
+  padding: 16px 18px 18px;
+}
+
+.wire-modal-body .field-group {
+  margin-bottom: 12px;
+}
+
+.wire-modal-info {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  background: #f3f3f3;
+  border: 1px solid #999999;
+}
+
+.wire-modal-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 400px) {
+  .viewport-stage {
+    padding: 0;
+    align-items: flex-start;
+  }
+  .mobile-shell {
+    max-width: 100%;
+    min-height: 100vh;
+    border: none;
+    box-shadow: none;
+  }
+}

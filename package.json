@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "tsc --noEmit",
-    "lint": "tsc --noEmit",
-    "start": "tsx server.ts"
+    "dev": "python3 server.py",
+    "build": "python3 -m compileall -q server.py energy_home tests",
+    "lint": "python3 -m compileall -q server.py energy_home tests && python3 -m unittest discover -s tests",
+    "start": "python3 server.py"
   },
   "dependencies": {
     "@types/express": "^5.0.6",
